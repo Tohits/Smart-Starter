@@ -13,8 +13,8 @@
         .box { background: #0b0e14; padding: 10px; border-radius: 12px; font-size: 0.6em; }
         .status-dot { height: 8px; width: 8px; background-color: #ff4d4d; border-radius: 50%; display: inline-block; transition: 0.3s; }
         
-        .stat-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 20px; }
-        .stat-card { background: #0b0e14; padding: 10px; border-radius: 15px; border: 1px solid #2d3446; font-size: 0.8em; }
+        .stat-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
+        .stat-card { background: #0b0e14; padding: 15px; border-radius: 15px; border: 1px solid #2d3446; }
         
         .relay-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 20px 0; }
         .relay-btn { background: #0b0e14; padding: 12px 5px; border-radius: 10px; font-size: 0.7em; font-weight: bold; border: 1px solid #2d3446; transition: 0.3s; }
@@ -40,10 +40,9 @@
         <div class="box">NEXT RESTART<br><b id="rebootTimer" style="color:#5c9eff;">--:--:--</b></div>
     </div>
     
-    <div class="stat-grid-3">
-        <div class="stat-card">TARGET<br><b style="font-size: 1.5em; color: #5c9eff;" id="targetDisplay">0</b></div>
-        <div class="stat-card">CURRENT<br><b style="font-size: 1.5em; color: #2ecc71;" id="currentDisplay">0</b></div>
-        <div class="stat-card">TIME<br><b style="font-size: 1.5em; color: #f39c12;" id="moveTimeDisplay">0.0s</b></div>
+    <div class="stat-grid-2">
+        <div class="stat-card">TARGET<br><b style="font-size: 1.5em; color: #5c9eff;" id="targetDisplay">0%</b></div>
+        <div class="stat-card">CURRENT<br><b style="font-size: 1.5em; color: #2ecc71;" id="currentDisplay">0%</b></div>
     </div>
     
     <div class="relay-grid">
@@ -51,19 +50,14 @@
         <div id="rRev" class="relay-btn">REV (D6)</div>
     </div>
     
+    <!-- Range is fixed from 0% to 100% -->
     <input type="range" class="slider" id="pulseSlider" min="0" max="100" value="0" oninput="updateTargetDisplay(this.value)" onchange="sendTarget(this.value)">
     
     <div class="settings-box">
-        <div style="font-size: 0.7em; margin-bottom: 8px; color: #8892b0; font-weight: bold;">MAX PULSE LIMIT: <span id="maxDisplay" style="color: white;">100</span></div>
-        <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-            <input type="number" id="newMaxInput" class="input-box" style="margin: 0; width: 60%; font-size: 0.9em; padding: 8px;" placeholder="New Limit...">
-            <button class="settings-btn" onclick="sendNewMax()">SAVE PULSES</button>
-        </div>
-        
-        <div style="font-size: 0.7em; margin-bottom: 8px; color: #8892b0; font-weight: bold;">SAFETY MOTOR TIMEOUT: <span id="timeoutDisplay" style="color: white;">30.0s</span></div>
+        <div style="font-size: 0.7em; margin-bottom: 8px; color: #8892b0; font-weight: bold;">TOTAL TIME (0%-100%): <span id="timeDisplay" style="color: white;">15s</span></div>
         <div style="display: flex; gap: 10px;">
-            <input type="number" id="newTimeInput" class="input-box" style="margin: 0; width: 60%; font-size: 0.9em; padding: 8px;" placeholder="Max Seconds...">
-            <button class="settings-btn" onclick="sendNewTime()">SAVE TIMEOUT</button>
+            <input type="number" id="newTimeInput" class="input-box" style="margin: 0; width: 60%; font-size: 0.9em; padding: 8px;" placeholder="Seconds...">
+            <button class="settings-btn" onclick="sendNewTime()">SAVE TIME</button>
         </div>
     </div>
 
@@ -74,11 +68,6 @@
     let client;
     const chipInput = document.getElementById("chipIdInput");
     let initialSyncDone = false;
-    
-    // Stopwatch Variables
-    let isMoving = false;
-    let moveStartTime = 0;
-    let moveTimerInterval;
 
     window.onload = () => {
         const savedId = localStorage.getItem("lastChipId");
@@ -87,7 +76,7 @@
             const savedPos = localStorage.getItem("lastPos_" + savedId);
             if (savedPos) {
                 document.getElementById("pulseSlider").value = savedPos;
-                document.getElementById("targetDisplay").innerText = savedPos;
+                document.getElementById("targetDisplay").innerText = savedPos + "%";
             }
             connectToDevice();
         }
@@ -114,24 +103,18 @@
             document.getElementById("espTxt").innerText = "ON";
             const d = m.payloadString.split(",");
             
-            document.getElementById("currentDisplay").innerText = d[0];
+            // Update current position percentage
+            document.getElementById("currentDisplay").innerText = d[0] + "%";
             
-            // Sync UI with ESP Hardware Max Settings
-            const hwMax = parseInt(d[4]);
-            if (!isNaN(hwMax)) {
-                document.getElementById("pulseSlider").max = hwMax;
-                document.getElementById("maxDisplay").innerText = hwMax;
-            }
-            
-            // Sync UI with ESP Safety Timeout Settings
-            const hwTimeoutMs = parseInt(d[5]);
-            if (!isNaN(hwTimeoutMs)) {
-                document.getElementById("timeoutDisplay").innerText = (hwTimeoutMs / 1000).toFixed(1) + "s";
+            // Update total travel time display from hardware
+            const totalSecs = parseInt(d[4]);
+            if (!isNaN(totalSecs)) {
+                document.getElementById("timeDisplay").innerText = totalSecs + "s";
             }
             
             if (!initialSyncDone && !localStorage.getItem("lastPos_" + chipId)) {
                 document.getElementById("pulseSlider").value = d[0];
-                document.getElementById("targetDisplay").innerText = d[0];
+                document.getElementById("targetDisplay").innerText = d[0] + "%";
                 initialSyncDone = true;
             }
 
@@ -149,31 +132,12 @@
             const dir = parseInt(d[2]);
             document.getElementById("rFwd").className = "relay-btn " + (dir === 1 ? "active-relay" : "");
             document.getElementById("rRev").className = "relay-btn " + (dir === 2 ? "active-relay" : "");
-            
-            // Stopwatch Logic
-            if (dir !== 0) { 
-                if (!isMoving) {
-                    isMoving = true;
-                    moveStartTime = Date.now();
-                    moveTimerInterval = setInterval(() => {
-                        let elapsed = (Date.now() - moveStartTime) / 1000;
-                        document.getElementById("moveTimeDisplay").innerText = elapsed.toFixed(1) + "s";
-                    }, 100);
-                }
-            } else { 
-                if (isMoving) {
-                    isMoving = false;
-                    clearInterval(moveTimerInterval); 
-                    let finalTime = (Date.now() - moveStartTime) / 1000;
-                    document.getElementById("moveTimeDisplay").innerText = finalTime.toFixed(1) + "s";
-                }
-            }
         };
     }
     
     function updateTargetDisplay(val) { 
         const d = document.getElementById("targetDisplay"); 
-        d.innerText = val; 
+        d.innerText = val + "%"; 
         d.style.color = "#ffffff"; 
         setTimeout(() => { d.style.color = "#5c9eff"; }, 500); 
     }
@@ -186,29 +150,19 @@
         }
     }
 
-    function sendNewMax() {
-        const newVal = document.getElementById("newMaxInput").value;
-        const chipId = chipInput.value;
-        if (newVal && client && client.isConnected()) {
-            client.send("pulse/" + chipId + "/cmd", "MAX:" + newVal);
-            document.getElementById("newMaxInput").value = ""; 
-            alert("New Pulse Limit Sent!");
-        }
-    }
-    
     function sendNewTime() {
         const newVal = document.getElementById("newTimeInput").value;
         const chipId = chipInput.value;
         if (newVal && client && client.isConnected()) {
             client.send("pulse/" + chipId + "/cmd", "TIME:" + newVal);
             document.getElementById("newTimeInput").value = ""; 
-            alert("New Safety Timeout Sent!");
+            alert("Total Travel Time Saved!");
         }
     }
     
     function sendReboot() { 
         if(client && client.isConnected() && confirm("Confirm Reboot?")) {
-            client.send("pulse/" + chipInput.value + "/cmd", "REBOOT"); 
+            client.send("pulse/" + chipId + "/cmd", "REBOOT"); 
         }
     }
 </script>
