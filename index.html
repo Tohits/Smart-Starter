@@ -14,9 +14,12 @@
         .status-dot { height: 8px; width: 8px; background-color: #ff4d4d; border-radius: 50%; display: inline-block; transition: 0.3s; }
         .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
         .stat-card { background: #0b0e14; padding: 15px; border-radius: 15px; border: 1px solid #2d3446; }
-        .relay-grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px; margin: 20px 0; }
-        .relay-btn { background: #0b0e14; padding: 10px 5px; border-radius: 10px; font-size: 0.6em; border: 1px solid #2d3446; transition: 0.3s; }
+        
+        /* Updated Grid for 2 Buttons */
+        .relay-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 20px 0; }
+        .relay-btn { background: #0b0e14; padding: 12px 5px; border-radius: 10px; font-size: 0.7em; font-weight: bold; border: 1px solid #2d3446; transition: 0.3s; }
         .active-relay { background: #ff4d4d; color: white; }
+        
         .slider { -webkit-appearance: none; width: 100%; height: 10px; background: #0b0e14; border-radius: 10px; border: 1px solid #2d3446; margin: 20px 0; }
         .slider::-webkit-slider-thumb { -webkit-appearance: none; width: 24px; height: 24px; background: #5c9eff; border-radius: 50%; box-shadow: 0 0 15px rgba(92, 158, 255, 0.6); border: 3px solid #ffffff; transition: 0.2s; }
         .slider::-webkit-slider-thumb:hover { transform: scale(1.15); background: #84b8ff; }
@@ -39,12 +42,12 @@
         <div class="stat-card">CURRENT READ<br><b style="font-size: 1.5em; color: #2ecc71;" id="currentDisplay">0%</b></div>
     </div>
     
+    <!-- Updated to only show D5 and D6 -->
     <div class="relay-grid">
-        <div id="r1" class="relay-btn">R1 FWD</div><div id="r2" class="relay-btn">R2 FWD</div>
-        <div id="r3" class="relay-btn">R3 REV</div><div id="r4" class="relay-btn">R4 REV</div>
+        <div id="rFwd" class="relay-btn">FWD (D5)</div>
+        <div id="rRev" class="relay-btn">REV (D6)</div>
     </div>
     
-    <!-- Value is set to 0 by default so it doesn't float in the middle -->
     <input type="range" class="slider" id="pulseSlider" min="0" max="100" value="0" oninput="updateTargetDisplay(this.value)" onchange="sendTarget(this.value)">
     
     <button class="reboot-btn" onclick="sendReboot()">REBOOT SYSTEM</button>
@@ -55,19 +58,15 @@
     const chipInput = document.getElementById("chipIdInput");
     let initialSyncDone = false;
 
-    // 1. Load saved ID and saved Slider Position on startup
     window.onload = () => {
         const savedId = localStorage.getItem("lastChipId");
         if (savedId) {
             chipInput.value = savedId;
-            
-            // Restore last slider position for this specific curtain
             const savedPos = localStorage.getItem("lastPos_" + savedId);
             if (savedPos) {
                 document.getElementById("pulseSlider").value = savedPos;
                 document.getElementById("targetDisplay").innerText = savedPos + "%";
             }
-            
             connectToDevice();
         }
     };
@@ -93,17 +92,14 @@
             document.getElementById("espTxt").innerText = "ON";
             const d = m.payloadString.split(",");
             
-            // Always update the Current Read to match hardware
             document.getElementById("currentDisplay").innerText = d[0] + "%";
             
-            // If there's no saved slider position, sync to the ESP hardware reading on first connect
             if (!initialSyncDone && !localStorage.getItem("lastPos_" + chipId)) {
                 document.getElementById("pulseSlider").value = d[0];
                 document.getElementById("targetDisplay").innerText = d[0] + "%";
                 initialSyncDone = true;
             }
 
-            // Handle timer formatting
             const timeRemaining = parseInt(d[3]);
             if (!isNaN(timeRemaining)) {
                 const hours = Math.floor(timeRemaining / 3600);
@@ -115,11 +111,10 @@
                     (seconds < 10 ? "0" : "") + seconds;
             }
 
+            // Updated JS logic for 2 buttons
             const dir = parseInt(d[2]);
-            document.getElementById("r1").className = "relay-btn " + (dir === 1 ? "active-relay" : "");
-            document.getElementById("r2").className = "relay-btn " + (dir === 1 ? "active-relay" : "");
-            document.getElementById("r3").className = "relay-btn " + (dir === 2 ? "active-relay" : "");
-            document.getElementById("r4").className = "relay-btn " + (dir === 2 ? "active-relay" : "");
+            document.getElementById("rFwd").className = "relay-btn " + (dir === 1 ? "active-relay" : "");
+            document.getElementById("rRev").className = "relay-btn " + (dir === 2 ? "active-relay" : "");
         };
     }
     
@@ -134,7 +129,6 @@
         const chipId = chipInput.value;
         if(client && client.isConnected()) {
             client.send("pulse/" + chipId + "/set", val); 
-            // Save the newly set target position locally
             localStorage.setItem("lastPos_" + chipId, val);
         }
     }
