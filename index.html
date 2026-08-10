@@ -12,8 +12,11 @@
         .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 20px; }
         .box { background: #0b0e14; padding: 10px; border-radius: 12px; font-size: 0.6em; }
         .status-dot { height: 8px; width: 8px; background-color: #ff4d4d; border-radius: 50%; display: inline-block; transition: 0.3s; }
-        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
-        .stat-card { background: #0b0e14; padding: 15px; border-radius: 15px; border: 1px solid #2d3446; }
+        
+        /* Updated to Grid 3 to fit the timer */
+        .stat-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+        .stat-card { background: #0b0e14; padding: 10px; border-radius: 15px; border: 1px solid #2d3446; font-size: 0.8em; }
+        
         .relay-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 20px 0; }
         .relay-btn { background: #0b0e14; padding: 12px 5px; border-radius: 10px; font-size: 0.7em; font-weight: bold; border: 1px solid #2d3446; transition: 0.3s; }
         .active-relay { background: #ff4d4d; color: white; }
@@ -21,7 +24,6 @@
         .slider::-webkit-slider-thumb { -webkit-appearance: none; width: 24px; height: 24px; background: #5c9eff; border-radius: 50%; box-shadow: 0 0 15px rgba(92, 158, 255, 0.6); border: 3px solid #ffffff; transition: 0.2s; }
         .slider::-webkit-slider-thumb:hover { transform: scale(1.15); background: #84b8ff; }
         
-        /* New Settings Box */
         .settings-box { background: #0b0e14; padding: 15px; border-radius: 15px; border: 1px solid #2d3446; margin-bottom: 20px; text-align: left; }
         .settings-btn { background: #5c9eff; color: #151a23; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; width: 40%; font-size: 0.7em; transition: 0.2s; }
         .settings-btn:active { transform: scale(0.95); }
@@ -39,9 +41,11 @@
         <div class="box">NEXT RESTART<br><b id="rebootTimer" style="color:#5c9eff;">--:--:--</b></div>
     </div>
     
-    <div class="grid-2">
-        <div class="stat-card">TARGET POS<br><b style="font-size: 1.5em; color: #5c9eff;" id="targetDisplay">0</b></div>
-        <div class="stat-card">CURRENT READ<br><b style="font-size: 1.5em; color: #2ecc71;" id="currentDisplay">0</b></div>
+    <!-- Added the Live Timer Card Here -->
+    <div class="stat-grid-3">
+        <div class="stat-card">TARGET<br><b style="font-size: 1.5em; color: #5c9eff;" id="targetDisplay">0</b></div>
+        <div class="stat-card">CURRENT<br><b style="font-size: 1.5em; color: #2ecc71;" id="currentDisplay">0</b></div>
+        <div class="stat-card">TIME<br><b style="font-size: 1.5em; color: #f39c12;" id="moveTimeDisplay">0.0s</b></div>
     </div>
     
     <div class="relay-grid">
@@ -51,7 +55,6 @@
     
     <input type="range" class="slider" id="pulseSlider" min="0" max="100" value="0" oninput="updateTargetDisplay(this.value)" onchange="sendTarget(this.value)">
     
-    <!-- New Config Box -->
     <div class="settings-box">
         <div style="font-size: 0.7em; margin-bottom: 8px; color: #8892b0; font-weight: bold;">HARDWARE MAX PULSE LIMIT: <span id="maxDisplay" style="color: white;">100</span></div>
         <div style="display: flex; gap: 10px;">
@@ -67,6 +70,11 @@
     let client;
     const chipInput = document.getElementById("chipIdInput");
     let initialSyncDone = false;
+    
+    // Stopwatch Variables
+    let isMoving = false;
+    let moveStartTime = 0;
+    let moveTimerInterval;
 
     window.onload = () => {
         const savedId = localStorage.getItem("lastChipId");
@@ -104,7 +112,6 @@
             
             document.getElementById("currentDisplay").innerText = d[0];
             
-            // NEW: Dynamically update slider scale based on Hardware Max limit
             const hwMax = parseInt(d[4]);
             if (!isNaN(hwMax)) {
                 document.getElementById("pulseSlider").max = hwMax;
@@ -131,6 +138,27 @@
             const dir = parseInt(d[2]);
             document.getElementById("rFwd").className = "relay-btn " + (dir === 1 ? "active-relay" : "");
             document.getElementById("rRev").className = "relay-btn " + (dir === 2 ? "active-relay" : "");
+            
+            // --- NEW STOPWATCH LOGIC ---
+            if (dir !== 0) { // If motor is moving (1 or 2)
+                if (!isMoving) {
+                    isMoving = true;
+                    moveStartTime = Date.now();
+                    // Start updating the UI every 100ms
+                    moveTimerInterval = setInterval(() => {
+                        let elapsed = (Date.now() - moveStartTime) / 1000;
+                        document.getElementById("moveTimeDisplay").innerText = elapsed.toFixed(1) + "s";
+                    }, 100);
+                }
+            } else { // If motor is stopped (0)
+                if (isMoving) {
+                    isMoving = false;
+                    clearInterval(moveTimerInterval); // Stop the timer
+                    // Lock in the final time
+                    let finalTime = (Date.now() - moveStartTime) / 1000;
+                    document.getElementById("moveTimeDisplay").innerText = finalTime.toFixed(1) + "s";
+                }
+            }
         };
     }
     
@@ -149,13 +177,12 @@
         }
     }
 
-    // NEW: Function to send the new max limit command
     function sendNewMax() {
         const newVal = document.getElementById("newMaxInput").value;
         const chipId = chipInput.value;
         if (newVal && client && client.isConnected()) {
             client.send("pulse/" + chipId + "/cmd", "MAX:" + newVal);
-            document.getElementById("newMaxInput").value = ""; // Clear box after sending
+            document.getElementById("newMaxInput").value = ""; 
             alert("New Max Limit Sent!");
         }
     }
