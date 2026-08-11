@@ -15,9 +15,9 @@
         .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
         .stat-card { background: #0b0e14; padding: 15px; border-radius: 15px; border: 1px solid #2d3446; }
         
-        .relay-grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px; margin: 20px 0; }
-        .relay-btn { background: #0b0e14; padding: 10px 5px; border-radius: 10px; font-size: 0.6em; border: 1px solid #2d3446; transition: 0.3s; }
-        .active-relay { background: #ff4d4d; color: white; }
+        .relay-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 20px 0; }
+        .relay-btn { background: #0b0e14; padding: 12px 5px; border-radius: 10px; font-size: 0.8em; border: 1px solid #2d3446; transition: 0.3s; font-weight: bold; }
+        .active-relay { background: #ff4d4d; color: white; border-color: #ff4d4d; }
         
         .slider { -webkit-appearance: none; width: 100%; height: 10px; background: #0b0e14; border-radius: 10px; border: 1px solid #2d3446; margin: 20px 0; }
         .slider::-webkit-slider-thumb { -webkit-appearance: none; width: 24px; height: 24px; background: #5c9eff; border-radius: 50%; box-shadow: 0 0 15px rgba(92, 158, 255, 0.6); border: 3px solid #ffffff; transition: 0.2s; }
@@ -46,13 +46,12 @@
     </div>
     
     <div class="relay-grid">
-        <div id="r1" class="relay-btn">R1 FWD</div><div id="r2" class="relay-btn">R2 FWD</div>
-        <div id="r3" class="relay-btn">R3 REV</div><div id="r4" class="relay-btn">R4 REV</div>
+        <div id="relayFwd" class="relay-btn">FWD (D5)</div>
+        <div id="relayRev" class="relay-btn">REV (D6)</div>
     </div>
     
     <input type="range" class="slider" id="pulseSlider" min="0" max="100" oninput="updateTargetDisplay(this.value)" onchange="sendTarget(this.value)">
     
-    <!-- Restored Max Pulse limit settings box -->
     <div class="settings-box">
         <div style="font-size: 0.7em; margin-bottom: 8px; color: #8892b0; font-weight: bold;">MAX PULSE LIMIT: <span id="maxDisplay" style="color: white;">100</span></div>
         <div style="display: flex; gap: 10px;">
@@ -130,12 +129,10 @@
                 initialSyncDone = true;
             }
 
-            // Update 4 Relays
+            // Update the 2 Relays (D5 and D6)
             const dir = parseInt(d[2]);
-            document.getElementById("r1").className = "relay-btn " + (dir === 1 ? "active-relay" : "");
-            document.getElementById("r2").className = "relay-btn " + (dir === 1 ? "active-relay" : "");
-            document.getElementById("r3").className = "relay-btn " + (dir === 2 ? "active-relay" : "");
-            document.getElementById("r4").className = "relay-btn " + (dir === 2 ? "active-relay" : "");
+            document.getElementById("relayFwd").className = "relay-btn " + (dir === 1 ? "active-relay" : "");
+            document.getElementById("relayRev").className = "relay-btn " + (dir === 2 ? "active-relay" : "");
         };
     }
     
@@ -152,7 +149,6 @@
         }
     }
     
-    // Function to send a new Max Pulse Limit to the ESP
     function sendNewMax() {
         const newVal = document.getElementById("newMaxInput").value;
         const chipId = chipInput.value;
