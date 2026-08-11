@@ -8,24 +8,23 @@
         body { font-family: 'Segoe UI', sans-serif; background: #0b0e14; color: white; display: flex; justify-content: center; padding: 20px; }
         .card { background: #151a23; padding: 25px; border-radius: 20px; border: 1px solid #2d3446; width: 350px; text-align: center; }
         h2 { color: #5c9eff; margin-bottom: 20px; font-size: 1.2em; }
-        .input-box { background: #0b0e14; border: 1px solid #2d3446; color: white; padding: 10px; border-radius: 10px; width: 90%; margin-bottom: 20px; text-align: center; font-size: 1em; box-sizing: border-box; }
-        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+        .input-box { background: #0b0e14; border: 1px solid #2d3446; color: white; padding: 10px; border-radius: 10px; width: 90%; margin-bottom: 20px; text-align: center; font-size: 1em; box-sizing: border-box;}
+        
+        /* Changed to grid-2 since the timer was removed */
+        .grid-2-status { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+        
         .box { background: #0b0e14; padding: 10px; border-radius: 12px; font-size: 0.6em; }
         .status-dot { height: 8px; width: 8px; background-color: #ff4d4d; border-radius: 50%; display: inline-block; transition: 0.3s; }
         
-        .stat-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 20px; }
-        .stat-card { background: #0b0e14; padding: 10px; border-radius: 15px; border: 1px solid #2d3446; font-size: 0.8em; }
-        
-        .relay-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 20px 0; }
-        .relay-btn { background: #0b0e14; padding: 12px 5px; border-radius: 10px; font-size: 0.7em; font-weight: bold; border: 1px solid #2d3446; transition: 0.3s; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
+        .stat-card { background: #0b0e14; padding: 15px; border-radius: 15px; border: 1px solid #2d3446; }
+        .relay-grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px; margin: 20px 0; }
+        .relay-btn { background: #0b0e14; padding: 10px 5px; border-radius: 10px; font-size: 0.6em; border: 1px solid #2d3446; transition: 0.3s; }
         .active-relay { background: #ff4d4d; color: white; }
+        
         .slider { -webkit-appearance: none; width: 100%; height: 10px; background: #0b0e14; border-radius: 10px; border: 1px solid #2d3446; margin: 20px 0; }
         .slider::-webkit-slider-thumb { -webkit-appearance: none; width: 24px; height: 24px; background: #5c9eff; border-radius: 50%; box-shadow: 0 0 15px rgba(92, 158, 255, 0.6); border: 3px solid #ffffff; transition: 0.2s; }
         .slider::-webkit-slider-thumb:hover { transform: scale(1.15); background: #84b8ff; }
-        
-        .settings-box { background: #0b0e14; padding: 15px; border-radius: 15px; border: 1px solid #2d3446; margin-bottom: 20px; text-align: left; }
-        .settings-btn { background: #5c9eff; color: #151a23; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; width: 40%; font-size: 0.7em; transition: 0.2s; }
-        .settings-btn:active { transform: scale(0.95); }
         .reboot-btn { width: 100%; padding: 15px; background: #ff4d4d; color: white; border: none; border-radius: 12px; font-weight: bold; cursor: pointer; }
     </style>
 </head>
@@ -34,60 +33,35 @@
     <h2>CURTAINS CONTROL</h2>
     <input type="text" id="chipIdInput" class="input-box" placeholder="Enter Curtain Chip ID..." onchange="connectToDevice()">
     
-    <div class="grid-3">
+    <div class="grid-2-status">
         <div class="box">CLOUD MQTT<br><span class="status-dot" id="mqttStatus"></span> <span id="mqttTxt">OFF</span></div>
         <div class="box">ESP HARDWARE<br><span class="status-dot" id="espStatus"></span> <span id="espTxt">OFF</span></div>
-        <div class="box">NEXT RESTART<br><b id="rebootTimer" style="color:#5c9eff;">--:--:--</b></div>
     </div>
     
-    <div class="stat-grid-3">
-        <div class="stat-card">TARGET<br><b style="font-size: 1.5em; color: #5c9eff;" id="targetDisplay">0</b></div>
-        <div class="stat-card">CURRENT<br><b style="font-size: 1.5em; color: #2ecc71;" id="currentDisplay">0</b></div>
-        <div class="stat-card">TIME<br><b style="font-size: 1.5em; color: #f39c12;" id="moveTimeDisplay">0.0s</b></div>
+    <div class="grid-2">
+        <div class="stat-card">TARGET POS<br><b style="font-size: 1.5em; color: #5c9eff;" id="targetDisplay">0%</b></div>
+        <div class="stat-card">CURRENT READ<br><b style="font-size: 1.5em; color: #2ecc71;" id="currentDisplay">0%</b></div>
     </div>
     
     <div class="relay-grid">
-        <div id="rFwd" class="relay-btn">FWD (D5)</div>
-        <div id="rRev" class="relay-btn">REV (D6)</div>
+        <div id="r1" class="relay-btn">R1 FWD</div><div id="r2" class="relay-btn">R2 FWD</div>
+        <div id="r3" class="relay-btn">R3 REV</div><div id="r4" class="relay-btn">R4 REV</div>
     </div>
     
-    <input type="range" class="slider" id="pulseSlider" min="0" max="100" value="0" oninput="updateTargetDisplay(this.value)" onchange="sendTarget(this.value)">
-    
-    <div class="settings-box">
-        <div style="font-size: 0.7em; margin-bottom: 8px; color: #8892b0; font-weight: bold;">MAX PULSE LIMIT: <span id="maxDisplay" style="color: white;">100</span></div>
-        <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-            <input type="number" id="newMaxInput" class="input-box" style="margin: 0; width: 60%; font-size: 0.9em; padding: 8px;" placeholder="New Limit...">
-            <button class="settings-btn" onclick="sendNewMax()">SAVE PULSES</button>
-        </div>
-        
-        <div style="font-size: 0.7em; margin-bottom: 8px; color: #8892b0; font-weight: bold;">SAFETY MOTOR TIMEOUT: <span id="timeoutDisplay" style="color: white;">30.0s</span></div>
-        <div style="display: flex; gap: 10px;">
-            <input type="number" id="newTimeInput" class="input-box" style="margin: 0; width: 60%; font-size: 0.9em; padding: 8px;" placeholder="Max Seconds...">
-            <button class="settings-btn" onclick="sendNewTime()">SAVE TIMEOUT</button>
-        </div>
-    </div>
-
+    <input type="range" class="slider" id="pulseSlider" min="0" max="100" oninput="updateTargetDisplay(this.value)" onchange="sendTarget(this.value)">
     <button class="reboot-btn" onclick="sendReboot()">REBOOT SYSTEM</button>
 </div>
 
 <script>
     let client;
     const chipInput = document.getElementById("chipIdInput");
-    let initialSyncDone = false;
-    
-    let isMoving = false;
-    let moveStartTime = 0;
-    let moveTimerInterval;
+    let initialSyncDone = false; // Added to prevent slider jumping on connect
 
+    // 1. Load saved ID on startup
     window.onload = () => {
         const savedId = localStorage.getItem("lastChipId");
         if (savedId) {
             chipInput.value = savedId;
-            const savedPos = localStorage.getItem("lastPos_" + savedId);
-            if (savedPos) {
-                document.getElementById("pulseSlider").value = savedPos;
-                document.getElementById("targetDisplay").innerText = savedPos;
-            }
             connectToDevice();
         }
     };
@@ -96,6 +70,7 @@
         const chipId = chipInput.value;
         if(!chipId) return;
         
+        // 2. Save ID for next time
         localStorage.setItem("lastChipId", chipId);
         initialSyncDone = false;
         
@@ -111,95 +86,44 @@
         client.onMessageArrived = (m) => {
             document.getElementById("espStatus").style.backgroundColor = "#2ecc71";
             document.getElementById("espTxt").innerText = "ON";
+            
             const d = m.payloadString.split(",");
             
-            document.getElementById("currentDisplay").innerText = d[0];
+            // Update Current display
+            document.getElementById("currentDisplay").innerText = d[0] + "%";
             
+            // Read max limits dynamically from ESP
             const hwMax = parseInt(d[4]);
             if (!isNaN(hwMax)) {
                 document.getElementById("pulseSlider").max = hwMax;
-                document.getElementById("maxDisplay").innerText = hwMax;
             }
-            
-            const hwTimeoutMs = parseInt(d[5]);
-            if (!isNaN(hwTimeoutMs)) {
-                document.getElementById("timeoutDisplay").innerText = (hwTimeoutMs / 1000).toFixed(1) + "s";
-            }
-            
-            if (!initialSyncDone && !localStorage.getItem("lastPos_" + chipId)) {
+
+            // Sync the slider position to the current ESP position ONLY on first connect
+            if (!initialSyncDone) {
                 document.getElementById("pulseSlider").value = d[0];
-                document.getElementById("targetDisplay").innerText = d[0];
+                document.getElementById("targetDisplay").innerText = d[0] + "%";
                 initialSyncDone = true;
             }
 
-            const timeRemaining = parseInt(d[3]);
-            if (!isNaN(timeRemaining)) {
-                const hours = Math.floor(timeRemaining / 3600);
-                const minutes = Math.floor((timeRemaining % 3600) / 60);
-                const seconds = timeRemaining % 60;
-                document.getElementById("rebootTimer").innerText = 
-                    (hours < 10 ? "0" : "") + hours + ":" + 
-                    (minutes < 10 ? "0" : "") + minutes + ":" + 
-                    (seconds < 10 ? "0" : "") + seconds;
-            }
-
+            // Update Relays
             const dir = parseInt(d[2]);
-            document.getElementById("rFwd").className = "relay-btn " + (dir === 1 ? "active-relay" : "");
-            document.getElementById("rRev").className = "relay-btn " + (dir === 2 ? "active-relay" : "");
-            
-            // Stopwatch timer for both directions (0 to 100 or 100 to 0)
-            if (dir !== 0) { 
-                if (!isMoving) {
-                    isMoving = true;
-                    moveStartTime = Date.now();
-                    moveTimerInterval = setInterval(() => {
-                        let elapsed = (Date.now() - moveStartTime) / 1000;
-                        document.getElementById("moveTimeDisplay").innerText = elapsed.toFixed(1) + "s";
-                    }, 100);
-                }
-            } else { 
-                if (isMoving) {
-                    isMoving = false;
-                    clearInterval(moveTimerInterval); 
-                    let finalTime = (Date.now() - moveStartTime) / 1000;
-                    document.getElementById("moveTimeDisplay").innerText = finalTime.toFixed(1) + "s";
-                }
-            }
+            document.getElementById("r1").className = "relay-btn " + (dir === 1 ? "active-relay" : "");
+            document.getElementById("r2").className = "relay-btn " + (dir === 1 ? "active-relay" : "");
+            document.getElementById("r3").className = "relay-btn " + (dir === 2 ? "active-relay" : "");
+            document.getElementById("r4").className = "relay-btn " + (dir === 2 ? "active-relay" : "");
         };
     }
     
     function updateTargetDisplay(val) { 
         const d = document.getElementById("targetDisplay"); 
-        d.innerText = val; 
+        d.innerText = val + "%"; 
         d.style.color = "#ffffff"; 
         setTimeout(() => { d.style.color = "#5c9eff"; }, 500); 
     }
     
     function sendTarget(val) { 
-        const chipId = chipInput.value;
         if(client && client.isConnected()) {
-            client.send("pulse/" + chipId + "/set", val); 
-            localStorage.setItem("lastPos_" + chipId, val);
-        }
-    }
-
-    function sendNewMax() {
-        const newVal = document.getElementById("newMaxInput").value;
-        const chipId = chipInput.value;
-        if (newVal && client && client.isConnected()) {
-            client.send("pulse/" + chipId + "/cmd", "MAX:" + newVal);
-            document.getElementById("newMaxInput").value = ""; 
-            alert("New Pulse Limit Sent!");
-        }
-    }
-    
-    function sendNewTime() {
-        const newVal = document.getElementById("newTimeInput").value;
-        const chipId = chipInput.value;
-        if (newVal && client && client.isConnected()) {
-            client.send("pulse/" + chipId + "/cmd", "TIME:" + newVal);
-            document.getElementById("newTimeInput").value = ""; 
-            alert("New Safety Timeout Sent!");
+            client.send("pulse/" + chipInput.value + "/set", val); 
         }
     }
     
