@@ -8,19 +8,26 @@
         body { font-family: 'Segoe UI', sans-serif; background: #0b0e14; color: white; display: flex; justify-content: center; padding: 20px; }
         .card { background: #151a23; padding: 25px; border-radius: 20px; border: 1px solid #2d3446; width: 350px; text-align: center; }
         h2 { color: #5c9eff; margin-bottom: 20px; font-size: 1.2em; }
-        .input-box { background: #0b0e14; border: 1px solid #2d3446; color: white; padding: 10px; border-radius: 10px; width: 90%; margin-bottom: 20px; text-align: center; font-size: 1em; }
+        .input-box { background: #0b0e14; border: 1px solid #2d3446; color: white; padding: 10px; border-radius: 10px; width: 90%; margin-bottom: 20px; text-align: center; font-size: 1em; box-sizing: border-box; }
         .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 20px; }
         .box { background: #0b0e14; padding: 10px; border-radius: 12px; font-size: 0.6em; }
         .status-dot { height: 8px; width: 8px; background-color: #ff4d4d; border-radius: 50%; display: inline-block; transition: 0.3s; }
         .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
         .stat-card { background: #0b0e14; padding: 15px; border-radius: 15px; border: 1px solid #2d3446; }
-        .relay-grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px; margin: 20px 0; }
-        .relay-btn { background: #0b0e14; padding: 10px 5px; border-radius: 10px; font-size: 0.6em; border: 1px solid #2d3446; transition: 0.3s; }
-        .active-relay { background: #ff4d4d; color: white; }
+        
+        .relay-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 20px 0; }
+        .relay-btn { background: #0b0e14; padding: 12px 5px; border-radius: 10px; font-size: 0.8em; border: 1px solid #2d3446; transition: 0.3s; font-weight: bold; }
+        .active-relay { background: #ff4d4d; color: white; border-color: #ff4d4d; }
+        
         .slider { -webkit-appearance: none; width: 100%; height: 10px; background: #0b0e14; border-radius: 10px; border: 1px solid #2d3446; margin: 20px 0; }
-        .slider::-webkit-slider-thumb { -webkit-appearance: none; width: 24px; height: 24px; background: #5c9eff; border-radius: 50%; box-shadow: 0 0 15px rgba(92, 158, 255, 0.6); border: 3px solid #ffffff; transition: 0.2s; }
+        .slider::-webkit-slider-thumb { -webkit-appearance: none; width: 24px; height: 24px; background: #5c9eff; border-radius: 50%; box-shadow: 0 0 15px rgba(92, 158, 255, 0.6); border: 3px solid #ffffff; transition: 0.2s; cursor: pointer; }
         .slider::-webkit-slider-thumb:hover { transform: scale(1.15); background: #84b8ff; }
+        
+        .settings-box { background: #0b0e14; padding: 15px; border-radius: 15px; border: 1px solid #2d3446; margin-bottom: 20px; text-align: left; }
+        .settings-btn { background: #5c9eff; color: #151a23; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; width: 40%; font-size: 0.7em; transition: 0.2s; }
+        .settings-btn:active { transform: scale(0.95); }
         .reboot-btn { width: 100%; padding: 15px; background: #ff4d4d; color: white; border: none; border-radius: 12px; font-weight: bold; cursor: pointer; }
+        .reboot-btn:active { transform: scale(0.98); }
     </style>
 </head>
 <body>
@@ -35,17 +42,24 @@
     </div>
     
     <div class="grid-2">
-        <div class="stat-card">TARGET POS<br><b style="font-size: 1.5em; color: #5c9eff;" id="targetDisplay">0%</b></div>
-        <div class="stat-card">CURRENT READ<br><b style="font-size: 1.5em; color: #2ecc71;" id="currentDisplay">0%</b></div>
+        <div class="stat-card">TARGET POS<br><b style="font-size: 1.5em; color: #5c9eff;" id="targetDisplay">0</b></div>
+        <div class="stat-card">CURRENT READ<br><b style="font-size: 1.5em; color: #2ecc71;" id="currentDisplay">0</b></div>
     </div>
     
     <div class="relay-grid">
-        <div id="r1" class="relay-btn">R1 FWD</div><div id="r2" class="relay-btn">R2 FWD</div>
-        <div id="r3" class="relay-btn">R3 REV</div><div id="r4" class="relay-btn">R4 REV</div>
+        <div id="relayFwd" class="relay-btn">FWD (D5)</div>
+        <div id="relayRev" class="relay-btn">REV (D6)</div>
     </div>
     
-    <!-- Value is set to 0 by default so it doesn't float in the middle -->
-    <input type="range" class="slider" id="pulseSlider" min="0" max="100" value="0" oninput="updateTargetDisplay(this.value)" onchange="sendTarget(this.value)">
+    <input type="range" class="slider" id="pulseSlider" min="0" max="100" oninput="updateTargetDisplay(this.value)" onchange="sendTarget(this.value)">
+    
+    <div class="settings-box">
+        <div style="font-size: 0.7em; margin-bottom: 8px; color: #8892b0; font-weight: bold;">MAX PULSE LIMIT: <span id="maxDisplay" style="color: white;">100</span></div>
+        <div style="display: flex; gap: 10px;">
+            <input type="number" id="newMaxInput" class="input-box" style="margin: 0; width: 60%; font-size: 0.9em; padding: 8px;" placeholder="New Limit...">
+            <button class="settings-btn" onclick="sendNewMax()">SAVE PULSES</button>
+        </div>
+    </div>
     
     <button class="reboot-btn" onclick="sendReboot()">REBOOT SYSTEM</button>
 </div>
@@ -53,21 +67,13 @@
 <script>
     let client;
     const chipInput = document.getElementById("chipIdInput");
-    let initialSyncDone = false;
+    let initialSyncDone = false; 
 
-    // 1. Load saved ID and saved Slider Position on startup
+    // 1. Load saved ID on startup
     window.onload = () => {
         const savedId = localStorage.getItem("lastChipId");
         if (savedId) {
             chipInput.value = savedId;
-            
-            // Restore last slider position for this specific curtain
-            const savedPos = localStorage.getItem("lastPos_" + savedId);
-            if (savedPos) {
-                document.getElementById("pulseSlider").value = savedPos;
-                document.getElementById("targetDisplay").innerText = savedPos + "%";
-            }
-            
             connectToDevice();
         }
     };
@@ -76,6 +82,7 @@
         const chipId = chipInput.value;
         if(!chipId) return;
         
+        // 2. Save ID for next time
         localStorage.setItem("lastChipId", chipId);
         initialSyncDone = false;
         
@@ -91,19 +98,13 @@
         client.onMessageArrived = (m) => {
             document.getElementById("espStatus").style.backgroundColor = "#2ecc71";
             document.getElementById("espTxt").innerText = "ON";
+            
             const d = m.payloadString.split(",");
             
-            // Always update the Current Read to match hardware
-            document.getElementById("currentDisplay").innerText = d[0] + "%";
+            // Update Current display
+            document.getElementById("currentDisplay").innerText = d[0];
             
-            // If there's no saved slider position, sync to the ESP hardware reading on first connect
-            if (!initialSyncDone && !localStorage.getItem("lastPos_" + chipId)) {
-                document.getElementById("pulseSlider").value = d[0];
-                document.getElementById("targetDisplay").innerText = d[0] + "%";
-                initialSyncDone = true;
-            }
-
-            // Handle timer formatting
+            // Handle Restart Timer Display
             const timeRemaining = parseInt(d[3]);
             if (!isNaN(timeRemaining)) {
                 const hours = Math.floor(timeRemaining / 3600);
@@ -115,33 +116,66 @@
                     (seconds < 10 ? "0" : "") + seconds;
             }
 
+            // Update Max Pulse Readout
+            const hwMax = parseInt(d[4]);
+            if (!isNaN(hwMax)) {
+                document.getElementById("pulseSlider").max = hwMax;
+                document.getElementById("maxDisplay").innerText = hwMax;
+            }
+
+            // Sync the slider position to the current ESP position ONLY on first connect
+            if (!initialSyncDone) {
+                document.getElementById("pulseSlider").value = d[0];
+                document.getElementById("targetDisplay").innerText = d[0];
+                initialSyncDone = true;
+            }
+
+            // Update the 2 Relays (D5 and D6)
             const dir = parseInt(d[2]);
-            document.getElementById("r1").className = "relay-btn " + (dir === 1 ? "active-relay" : "");
-            document.getElementById("r2").className = "relay-btn " + (dir === 1 ? "active-relay" : "");
-            document.getElementById("r3").className = "relay-btn " + (dir === 2 ? "active-relay" : "");
-            document.getElementById("r4").className = "relay-btn " + (dir === 2 ? "active-relay" : "");
+            document.getElementById("relayFwd").className = "relay-btn " + (dir === 1 ? "active-relay" : "");
+            document.getElementById("relayRev").className = "relay-btn " + (dir === 2 ? "active-relay" : "");
         };
     }
     
     function updateTargetDisplay(val) { 
         const d = document.getElementById("targetDisplay"); 
-        d.innerText = val + "%"; 
+        d.innerText = val; 
         d.style.color = "#ffffff"; 
         setTimeout(() => { d.style.color = "#5c9eff"; }, 500); 
     }
     
     function sendTarget(val) { 
-        const chipId = chipInput.value;
         if(client && client.isConnected()) {
-            client.send("pulse/" + chipId + "/set", val); 
-            // Save the newly set target position locally
-            localStorage.setItem("lastPos_" + chipId, val);
+            let message = new Paho.MQTT.Message(val.toString());
+            message.destinationName = "pulse/" + chipInput.value + "/set";
+            client.send(message); 
+        } else {
+            alert("Not connected to MQTT broker!");
+        }
+    }
+    
+    function sendNewMax() {
+        const newVal = document.getElementById("newMaxInput").value;
+        const chipId = chipInput.value;
+        if (newVal && client && client.isConnected()) {
+            let message = new Paho.MQTT.Message("MAX:" + newVal);
+            message.destinationName = "pulse/" + chipId + "/cmd";
+            client.send(message);
+            
+            document.getElementById("newMaxInput").value = ""; 
+            alert("New Pulse Limit Sent!");
+        } else if (!client || !client.isConnected()) {
+            alert("Not connected to MQTT broker!");
         }
     }
     
     function sendReboot() { 
         if(client && client.isConnected() && confirm("Confirm Reboot?")) {
-            client.send("pulse/" + chipInput.value + "/cmd", "REBOOT"); 
+            let message = new Paho.MQTT.Message("REBOOT");
+            message.destinationName = "pulse/" + chipInput.value + "/cmd";
+            client.send(message); 
+        } else if (!client || !client.isConnected()) {
+            alert("Not connected to MQTT broker!");
         }
     }
 </script>
