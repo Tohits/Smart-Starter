@@ -2,8 +2,8 @@
  * 5 HP 3-Phase Smart Motor Starter Firmware for ESP32S (Global Cloud-Only Edition)
  * Features:
  * - Captive Portal (WiFiManager) for easy Wi-Fi setup
- * - Non-blocking 3-Phase Current Monitoring with Strict Noise Suppression
- * - Schneider LC1-D1810 Contactor Control via Single-Channel Relay (Active LOW)
+ * - Non-blocking 3-Phase Current Monitoring with Strict Noise Suppression (Pinned to 0.0A when idle/disconnected)
+ * - Schneider LC1-D1810 Contactor Control via Single-Channel Relay on GPIO 5 (P5)
  * - 100% Global Cloud Control & Telemetry via Secure HiveMQ MQTT (Port 8883)
  * - NTP Time Synchronization & Time Scheduling
  * - Safety Protections (Adjusted FLC threshold for testing)
@@ -22,7 +22,7 @@ WiFiClientSecure espClient;
 PubSubClient mqttClient(espClient);
 
 // Pin Definitions
-const int RELAY_PIN = 23;     // Connected to Single-Channel Relay IN
+const int RELAY_PIN = 5;      // Relay connected to Pin P5 (GPIO 5)
 
 // --- RELAY LOGIC CONFIGURATION ---
 const int RELAY_ON = LOW;     // Active LOW relay module (LOW = ON)
@@ -214,10 +214,10 @@ void loop() {
   }
 }
 
-// Function to calculate RMS current from CT Sensor with Strict Floating Noise Suppression
+// Function to calculate RMS current from CT Sensor with Advanced Noise Suppressor
 float readRMSCurrent(int pin) {
   long sum = 0;
-  int samples = 80;
+  int samples = 100;
   int zeroOffset = 2048; // 1.65V center for CT sensors (3.3V / 2)
   long minVal = 4095;
   long maxVal = 0;
@@ -233,15 +233,16 @@ float readRMSCurrent(int pin) {
   }
 
   long variance = maxVal - minVal;
-  if (variance < 30) {
-    return 0.0; // Suppress floating noise when sensors are disconnected
+  // If variance is small or pin is floating/disconnected, return 0.0 A strictly
+  if (variance < 50) {
+    return 0.0;
   }
 
   float rmsRaw = sqrt((float)sum / samples);
   float voltage = (rmsRaw / 4095.0) * 3.3;
   float amps = voltage * 12.0;
 
-  if (amps < 0.5) {
+  if (amps < 0.8) {
     amps = 0.0;
   }
   return amps;
@@ -256,7 +257,7 @@ void tripMotor() {
 void setMotorState(bool state) {
   motorState = state;
   digitalWrite(RELAY_PIN, state ? RELAY_ON : RELAY_OFF);
-  Serial.print(">>> Relay GPIO 23 set to: ");
+  Serial.print(">>> Relay Pin P5 (GPIO 5) set to: ");
   Serial.println(state ? "RELAY_ON (LOW)" : "RELAY_OFF (HIGH)");
 }
 
