@@ -40,6 +40,20 @@
     <!-- Main Content -->
     <main class="max-w-4xl mx-auto p-6 w-full flex-grow flex flex-col gap-6 justify-center">
 
+        <!-- Install PWA Banner (Hidden by default) -->
+        <div id="installBanner" class="hidden bg-gradient-to-r from-blue-600 to-indigo-600 p-4 rounded-2xl shadow-lg flex items-center justify-between gap-4 border border-blue-400/30">
+            <div class="flex items-center gap-3">
+                <span class="text-3xl">📱</span>
+                <div>
+                    <h4 class="font-bold text-white text-base">Install Smart Starter App</h4>
+                    <p class="text-blue-100 text-xs">Add to your phone home screen for quick access and native app experience.</p>
+                </div>
+            </div>
+            <button id="installBtn" class="bg-white text-blue-700 font-bold px-4 py-2 rounded-xl text-sm shadow hover:bg-blue-50 transition whitespace-nowrap">
+                Install App
+            </button>
+        </div>
+
         <!-- Status Card -->
         <div id="statusCard" class="p-6 rounded-2xl border border-slate-700 bg-slate-800 shadow-lg text-center transition-all duration-300">
             <p class="text-slate-400 text-sm uppercase tracking-wider mb-1">Motor Status</p>
@@ -86,8 +100,40 @@
         Smart Starter IoT PWA Dashboard &bull; Hosted on Vercel
     </footer>
 
-    <!-- JavaScript Logic & PWA Service Worker Registration -->
+    <!-- JavaScript Logic & PWA Install Prompt -->
     <script>
+        let deferredPrompt;
+        const installBanner = document.getElementById('installBanner');
+        const installBtn = document.getElementById('installBtn');
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+            // Prevent the mini-infobar from appearing on mobile
+            e.preventDefault();
+            // Stash the event so it can be triggered later.
+            deferredPrompt = e;
+            // Show the install banner
+            installBanner.classList.remove('hidden');
+        });
+
+        installBtn.addEventListener('click', async () => {
+            if (deferredPrompt) {
+                // Show the install prompt
+                deferredPrompt.prompt();
+                // Wait for the user to respond to the prompt
+                const { outcome } = await deferredPrompt.userChoice;
+                if (outcome === 'accepted') {
+                    console.log('User accepted the install prompt');
+                }
+                deferredPrompt = null;
+                installBanner.classList.add('hidden');
+            }
+        });
+
+        window.addEventListener('appinstalled', () => {
+            console.log('PWA was installed successfully');
+            installBanner.classList.add('hidden');
+        });
+
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('/sw.js')
@@ -162,7 +208,7 @@
 
                 setConnectionState('disconnected', 'Device Offline');
                 errorText.innerText = "Connection failed. Check IP address or CORS.";
-                errorText.classList.remove('hidden');
+                errorText.classList.add('hidden');
             }
         }
 
