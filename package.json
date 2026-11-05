@@ -1,0 +1,13 @@
+{
+  "name": "smart-starter-backend",
+  "version": "1.0.0",
+  "description": "Node.js backend for 5 HP Smart Motor Starter (Render ready)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "cors": "2.8.5",
+    "express": "4.19.2"
+  }
+}

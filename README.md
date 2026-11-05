@@ -1,6 +1,11 @@
-# 5 HP Smart Motor Starter (ESP32)
+# 5 HP Smart Motor Starter (Full-Stack IoT System)
 
-A smart IoT-enabled 3-phase motor starter and monitoring system powered by an **ESP32S**, 3 current sensors (CT sensors), a single-channel relay module, and a **Schneider LC1-D1810** AC contactor. It includes both the ESP32 firmware and a modern **Web Frontend Dashboard** ready to be hosted on **Vercel**.
+A complete IoT-enabled 3-phase motor starter and monitoring system powered by an **ESP32S**, 3 current sensors (CT sensors), a single-channel relay module, and a **Schneider LC1-D1810** AC contactor. 
+
+This repository includes:
+1. **ESP32 Firmware** (`SmartStarter.ino`)
+2. **Node.js Cloud Backend** (`server.js` - Render ready)
+3. **Web Frontend Dashboard** (`index.html` - Vercel ready)
 
 ---
 
@@ -25,41 +30,38 @@ A smart IoT-enabled 3-phase motor starter and monitoring system powered by an **
 | **Relay COM** | Common | Live (230V AC Supply) |
 | **CT Sensor 1** | Output | ESP32 `GPIO 34` (Analog ADC1) |
 | **CT Sensor 2** | Output | ESP32 `GPIO 35` (Analog ADC1) |
-| **CTSensor 3** | Output | ESP32 `GPIO 32` (Analog ADC1) |
+| **CT Sensor 3** | Output | ESP32 `GPIO 32` (Analog ADC1) |
 
 ---
 
-## 🌐 Web Frontend Dashboard (`index.html`)
+## 🌐 Hosting Architecture
 
-The repository includes a modern, responsive Tailwind CSS web dashboard (`index.html`) configured for zero-config deployment on **Vercel**.
+```text
+ [ESP32 Smart Starter] ---> (HTTP POST /api/telemetry) ---> [ Node.js Backend on Render ]
+          ^                                                              |
+          |                                                       (HTTP GET /api/data)
+  (HTTP GET /api/command)                                                |
+          |                                                              v
+ [ Vercel Frontend Dashboard ] <--- (User clicks START/STOP) --- [ Browser / Phone ]
+```
 
-### Hosting on Vercel:
-1. Import your GitHub repository (`Tohits/Smart-Starter`) into Vercel.
-2. Leave build settings as default (static site).
-3. Click **Deploy**.
-4. Once deployed, open your Vercel URL, enter your ESP32's local IP address in the header input field, and click **Connect** to monitor phase currents and start/stop your motor remotely!
+### 1. Backend API (Render)
+- Deploy this repository to **Render** as a Web Service.
+- Render will automatically run `npm install` and `npm start` using `render.yaml`.
+- Provides cloud endpoints:
+  - `POST /api/telemetry` (ESP32 updates currents/status)
+  - `GET /api/data` (Frontend fetches latest telemetry)
+  - `POST /api/control` (Frontend queues Start/Stop command)
+  - `GET /api/command` (ESP32 polls pending commands)
 
----
-
-## 📡 ESP32 Firmware Features
-
-- **Wi-Fi Connectivity**: Connects to your local Wi-Fi network.
-- **Real-Time 3-Phase Monitoring**: Samples analog pins and calculates RMS current across all 3 phases.
-- **Overload & Dry-Run Protection**: Automatically trips (disengages relay) if phase current exceeds rated FLC (9.0A for 5 HP) or drops below dry-run threshold.
-- **REST API Endpoints**:
-  - `GET /data`: Returns JSON containing motor status (`ON`/`OFF`) and phase currents (`phase1`, `phase2`, `phase3`).
-  - `POST /control?state=ON` or `OFF`: Remotely starts or stops the motor contactor.
+### 2. Frontend Dashboard (Vercel)
+- Import this repository into **Vercel** as a static site.
+- Point the frontend to your Render API URL.
 
 ---
 
 ## 🚀 Getting Started
 
-1. Open `SmartStarter.ino` in the **Arduino IDE**.
-2. Install the **ESP32 Board Package** and required libraries (`WebServer`).
-3. Update your Wi-Fi credentials in `SmartStarter.ino`:
-   ```cpp
-   const char* ssid = "YOUR_WIFI_SSID";
-   const char* password = "YOUR_WIFI_PASSWORD";
-   ```
-4. Compile and upload to your ESP32S.
-5. Access the web dashboard locally or via Vercel pointing to your ESP32 IP.
+1. **Upload Firmware**: Open `SmartStarter.ino` in the Arduino IDE, set your Wi-Fi credentials and your Render API URL, and flash it to your ESP32S.
+2. **Deploy Backend**: Push to GitHub and deploy on Render.
+3. **Deploy Frontend**: Deploy on Vercel and monitor/control your 5 HP motor from anywhere in the world!
