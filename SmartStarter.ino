@@ -2,11 +2,11 @@
  * 5 HP 3-Phase Smart Motor Starter Firmware for ESP32S (Global Cloud-Only Edition)
  * Features:
  * - Captive Portal (WiFiManager) for easy Wi-Fi setup
- * - Non-blocking 3-Phase Current Monitoring with Strict Noise Suppression (Pinned to 0.0A when idle/disconnected)
- * - Schneider LC1-D1810 Contactor Control via Single-Channel Relay on GPIO 5 (P5)
+ * - Non-blocking 3-Phase Current Monitoring with Strict Voltage Threshold & Noise Suppression
+ * - Schneider LC1-D1810 Contactor Control via Single-Channel Relay on Pin P5 (GPIO 5)
  * - 100% Global Cloud Control & Telemetry via Secure HiveMQ MQTT (Port 8883)
  * - NTP Time Synchronization & Time Scheduling
- * - Safety Protections (Adjusted FLC threshold for testing)
+ * - Continuous Safety Protections (Overload, Dry-Run, Phase Failure)
  */
 
 #include <WiFi.h>
@@ -214,7 +214,7 @@ void loop() {
   }
 }
 
-// Function to calculate RMS current from CT Sensor with Advanced Noise Suppressor
+// Function to calculate RMS current from CT Sensor with Strict Voltage Threshold
 float readRMSCurrent(int pin) {
   long sum = 0;
   int samples = 100;
@@ -233,15 +233,15 @@ float readRMSCurrent(int pin) {
   }
 
   long variance = maxVal - minVal;
-  // If variance is small or pin is floating/disconnected, return 0.0 A strictly
-  if (variance < 50) {
+  float rmsRaw = sqrt((float)sum / samples);
+  float voltage = (rmsRaw / 4095.0) * 3.3;
+
+  // Strict Threshold: If voltage is below 0.3V RMS or variance is too low, it's floating noise
+  if (voltage < 0.30 || variance < 50) {
     return 0.0;
   }
 
-  float rmsRaw = sqrt((float)sum / samples);
-  float voltage = (rmsRaw / 4095.0) * 3.3;
   float amps = voltage * 12.0;
-
   if (amps < 0.8) {
     amps = 0.0;
   }
