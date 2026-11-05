@@ -1,0 +1,15 @@
+{
+  "name": "5 HP Smart Motor Starter",
+  "short_name": "SmartStarter",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#1e293b",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml"
+    }
+  ]
+}
