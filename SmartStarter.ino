@@ -1,18 +1,19 @@
 /*
  * 5 HP 3-Phase Smart Motor Starter Firmware for ESP32S
- * Components:
- * - ESP32S Microcontroller
- * - 3x Current Sensors (CT Sensors on Phase 1, Phase 2, Phase 3)
- * - 1x Single-Channel Relay Module (connected to Contactor Coil A1)
- * - 1x Schneider LC1-D1810 AC Contactor (18A AC-3)
+ * Features:
+ * - Captive Portal (WiFiManager) for easy Wi-Fi setup
+ * - 3-Phase Current Monitoring (CT Sensors) & Overload/Dry-Run Protection
+ * - Schneider LC1-D1810 Contactor Control via Single-Channel Relay
+ * - NTP Time Synchronization & Time Scheduling
+ * - Web-Based OTA (Over-The-Air) Firmware Update
+ * - CORS-enabled REST API for Vercel Web Dashboard
  */
 
 #include <WiFi.h>
 #include <WebServer.h>
-
-// Replace with your Wi-Fi credentials
-const char* ssid = "YOUR_WIFI_SSID";
-const char* password = "YOUR_WIFI_PASSWORD";
+#include <WiFiManager.h>
+#include <Update.h>
+#include "time.h"
 
 WebServer server(80);
 
@@ -27,50 +28,118 @@ bool motorState = false;
 const float RATED_FLC = 9.0;     // Max allowable current before overload trip (Amps)
 const float DRY_RUN_LIMIT = 1.5; // Min current for pump dry-run detection (Amps)
 
+// NTP Time Servers & Settings (Adjust GMT offset for your timezone, e.g., 19800 for UTC+5:30)
+const long gmtOffset_sec = 19800;
+const int daylightOffset_sec = 0;
+
+// Time Schedule Example (24-hour format)
+const int SCHEDULE_START_HOUR = 6;   // 06:00 AM
+const int SCHEDULE_START_MIN = 30;
+const int SCHEDULE_STOP_HOUR = 18;   // 06:00 PM
+const int SCHEDULE_STOP_MIN = 0;
+bool scheduleEnabled = false;        // Toggle time scheduling via API or settings
+
 void setup() {
   Serial.begin(115200);
 
   pinMode(RELAY_PIN, OUTPUT);
   digitalWrite(RELAY_PIN, LOW); // Contactor OFF by default
 
-  // Connect to Wi-Fi
-  WiFi.begin(ssid, password);
-  Serial.print("Connecting to Wi-Fi");
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
+  // --- Captive Portal Wi-Fi Setup ---
+  WiFiManager wifiManager;
+  // Uncomment to reset saved Wi-Fi credentials for testing:
+  // wifiManager.resetSettings();
+
+  // Tries to connect to last saved Wi-Fi, if fails starts AP named "SmartStarter-AP" with password "12345678"
+  if (!wifiManager.autoConnect("SmartStarter-AP", "12345678")) {
+    Serial.println("Failed to connect and hit timeout. Rebooting...");
+    delay(3000);
+    ESP.restart();
   }
-  Serial.println("\nWi-Fi Connected!");
+
+  Serial.println("\nWi-Fi Connected successfully!");
   Serial.print("ESP32 IP Address: ");
   Serial.println(WiFi.localIP());
 
-  // Web Server Routes & CORS Handlers
+  // --- NTP Time Sync ---
+  configTime(gmtOffset_sec, daylightOffset_sec, "pool.ntp.org", "time.nist.gov");
+
+  // --- Web Server Routes ---
   server.on("/data", HTTP_GET, handleGetData);
   server.on("/control", HTTP_POST, handleControl);
   server.on("/data", HTTP_OPTIONS, handleCors);
   server.on("/control", HTTP_OPTIONS, handleCors);
 
+  // OTA Update HTML Form Route
+  server.on("/update", HTTP_GET, []() {
+    server.send(200, "text/html",
+      "<form method='POST' action='/update' enctype='multipart/form-data'>"
+      "<h3>ESP32 OTA Firmware Update</h3>"
+      "<input type='file' name='update'><input type='submit' value='Update'>"
+      "</form>");
+  });
+
+  // OTA Update Handler Route
+  server.on("/update", HTTP_POST, []() {
+    server.send(200, "text/html", Update.hasError() ? "FAIL" : "SUCCESS. Rebooting...");
+    ESP.restart();
+  }, []() {
+    HTTPUpload& upload = server.upload();
+    if (upload.status == UPLOAD_FILE_START) {
+      Serial.printf("Update: %s\n", upload.filename.c_str());
+      if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {
+        Update.printError(Serial);
+      }
+    } else if (upload.status == UPLOAD_FILE_WRITE) {
+      if (Update.write(upload.buf, upload.currentSize) != upload.currentSize) {
+        Update.printError(Serial);
+      }
+    } else if (upload.status == UPLOAD_FILE_END) {
+      if (Update.end(true)) {
+        Serial.printf("Update Success: %u bytes\nRebooting...\n", upload.totalSize);
+      } else {
+        Update.printError(Serial);
+      }
+    }
+  });
+
   server.begin();
-  Serial.println("Smart Starter HTTP Server Started");
+  Serial.println("Smart Starter HTTP Server & OTA Started");
 }
 
 void loop() {
   server.handleClient();
 
-  // Continuous Protection Check if Motor is Running
+  // --- Time Scheduling Check ---
+  if (scheduleEnabled) {
+    struct tm timeinfo;
+    if (getLocalTime(&timeinfo)) {
+      int currentHour = timeinfo.tm_hour;
+      int currentMin = timeinfo.tm_min;
+
+      // Check start schedule
+      if (currentHour == SCHEDULE_START_HOUR && currentMin == SCHEDULE_START_MIN && !motorState) {
+        Serial.println("Schedule Trigger: Starting Motor");
+        setMotorState(true);
+      }
+      // Check stop schedule
+      else if (currentHour == SCHEDULE_STOP_HOUR && currentMin == SCHEDULE_STOP_MIN && motorState) {
+        Serial.println("Schedule Trigger: Stopping Motor");
+        setMotorState(false);
+      }
+    }
+  }
+
+  // --- Continuous Protection Check if Motor is Running ---
   if (motorState) {
     float i1 = readRMSCurrent(CT1_PIN);
     float i2 = readRMSCurrent(CT2_PIN);
     float i3 = readRMSCurrent(CT3_PIN);
 
-    // Overload or Dry Run Protection Trip
+    // Overload Protection Trip
     if (i1 > RATED_FLC || i2 > RATED_FLC || i3 > RATED_FLC) {
       Serial.println("TRIP: Overload detected! Shutting down motor.");
       tripMotor();
-    } else if (i1 < DRY_RUN_LIMIT && i2 < DRY_RUN_LIMIT && i3 < DRY_RUN_LIMIT) {
-      // Optional dry-run check
-      // Serial.println("TRIP: Dry Run detected! Shutting down motor.");
-      // tripMotor();
     }
   }
   delay(1000);
@@ -82,20 +151,22 @@ float readRMSCurrent(int pin) {
   int samples = 150;
   for (int i = 0; i < samples; i++) {
     int raw = analogRead(pin);
-    // Convert ADC reading to voltage (ESP32 12-bit ADC = 4095, 3.3V ref)
     float voltage = (raw / 4095.0) * 3.3;
-    // Calibration factor depending on your CT sensor & burden resistor
     float amps = voltage * 10.0;
     sum += amps * amps;
     delay(2);
   }
-  float rms = sqrt(sum / samples);
-  return rms;
+  return sqrt(sum / samples);
 }
 
 void tripMotor() {
   motorState = false;
-  digitalWrite(RELAY_PIN, LOW); // De-energize relay -> release contactor
+  digitalWrite(RELAY_PIN, LOW);
+}
+
+void setMotorState(bool state) {
+  motorState = state;
+  digitalWrite(RELAY_PIN, state ? HIGH : LOW);
 }
 
 void addCorsHeaders() {
@@ -115,11 +186,20 @@ void handleGetData() {
   float i2 = readRMSCurrent(CT2_PIN);
   float i3 = readRMSCurrent(CT3_PIN);
 
+  // Get current time string
+  struct tm timeinfo;
+  char timeStr[32] = "NTP Syncing...";
+  if (getLocalTime(&timeinfo)) {
+    strftime(timeStr, sizeof(timeStr), "%Y-%m-%d %H:%M:%S", &timeinfo);
+  }
+
   String json = "{";
   json += "\"status\":\"" + String(motorState ? "ON" : "OFF") + "\",";
   json += "\"phase1\":" + String(i1, 2) + ",";
   json += "\"phase2\":" + String(i2, 2) + ",";
-  json += "\"phase3\":" + String(i3, 2);
+  json += "\"phase3\":" + String(i3, 2) + ",";
+  json += "\"time\":\"" + String(timeStr) + "\",";
+  json += "\"scheduleEnabled\":" + String(scheduleEnabled ? "true" : "false");
   json += "}";
 
   server.send(200, "application/json", json);
@@ -130,17 +210,18 @@ void handleControl() {
   if (server.hasArg("state")) {
     String state = server.arg("state");
     if (state == "ON") {
-      motorState = true;
-      digitalWrite(RELAY_PIN, HIGH); // Energize relay -> pull in contactor LC1-D1810
+      setMotorState(true);
       Serial.println("Motor Started via Web Command");
     } else if (state == "OFF") {
-      motorState = false;
-      digitalWrite(RELAY_PIN, LOW);  // Drop contactor
+      setMotorState(false);
       Serial.println("Motor Stopped via Web Command");
     }
     server.send(200, "application/json", "{\"result\":\"success\",\"state\":\"" + String(motorState ? "ON" : "OFF") + "\"}");
+  } else if (server.hasArg("schedule")) {
+    String sched = server.arg("schedule");
+    scheduleEnabled = (sched == "true");
+    server.send(200, "application/json", "{\"result\":\"success\",\"scheduleEnabled\":" + String(scheduleEnabled ? "true" : "false") + "}");
   } else {
-    server.send(400, "application/json", "{\"result\":\"error\",\"message\":\"Missing state parameter\"}");
+    server.send(400, "application/json", "{\"result\":\"error\",\"message\":\"Missing parameters\"}");
   }
 }
-// End of file
