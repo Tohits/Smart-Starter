@@ -2,9 +2,9 @@
  * 5 HP 3-Phase Smart Motor Starter Firmware for ESP32S (Global Cloud-Only Edition)
  * Features:
  * - Captive Portal (WiFiManager) for easy Wi-Fi setup
- * - Non-blocking 3-Phase Current Monitoring (CT Sensors) with Zero-Noise Filtering
+ * - Robust 3-Phase Current Monitoring with Floating-Noise Suppression
  * - Schneider LC1-D1810 Contactor Control via Single-Channel Relay (Active LOW)
- * - 100% Global Cloud Control & Telemetry via Secure HiveMQ MQTT (Port 8883) with RSSI & Uptime
+ * - 100% Global Cloud Control & Telemetry via Secure HiveMQ MQTT (Port 8883)
  * - NTP Time Synchronization & Time Scheduling
  * - Continuous Safety Protections (Overload, Dry-Run, Phase Failure)
  */
@@ -68,16 +68,19 @@ void callback(char* topic, byte* payload, unsigned int length) {
     message += (char)payload[i];
   }
   message.trim();
+  message.toUpperCase(); // Convert to uppercase for robust comparison
+
   Serial.print(">>> MQTT Message received on topic [");
   Serial.print(topic);
-  Serial.print("]: ");
-  Serial.println(message);
+  Serial.print("]: '");
+  Serial.print(message);
+  Serial.println("'");
 
   if (String(topic) == mqtt_topic_control) {
-    if (message == "ON") {
+    if (message == "ON" || message == "START" || message == "1") {
       Serial.println(">>> Command matched: Turning MOTOR ON");
       setMotorState(true);
-    } else if (message == "OFF") {
+    } else if (message == "OFF" || message == "STOP" || message == "0") {
       Serial.println(">>> Command matched: Turning MOTOR OFF");
       setMotorState(false);
     } else {
@@ -225,25 +228,36 @@ void loop() {
   }
 }
 
-// Function to calculate RMS current from CT Sensor with Zero-Noise Filtering
+// Function to calculate RMS current from CT Sensor with Strict Floating Noise Suppression
 float readRMSCurrent(int pin) {
   long sum = 0;
   int samples = 80;
   int zeroOffset = 2048; // 1.65V center for CT sensors (3.3V / 2)
+  long minVal = 4095;
+  long maxVal = 0;
 
   for (int i = 0; i < samples; i++) {
     int raw = analogRead(pin);
+    if (raw < minVal) minVal = raw;
+    if (raw > maxVal) maxVal = raw;
+
     int centered = raw - zeroOffset;
     sum += (long)centered * centered;
-    delayMicroseconds(200); // Non-blocking fast sampling
+    delayMicroseconds(200);
+  }
+
+  // If the pin is floating (disconnected), min/max variance is huge or flatlined.
+  // Real CT sensors produce an AC sine wave oscillating around 2048.
+  long variance = maxVal - minVal;
+  if (variance < 15) {
+    return 0.0; // No AC signal detected (flatline / nothing connected)
   }
 
   float rmsRaw = sqrt((float)sum / samples);
   float voltage = (rmsRaw / 4095.0) * 3.3;
-  float amps = voltage * 12.0; // Calibration factor
+  float amps = voltage * 12.0;
 
-  // Noise filter: if nothing is attached or floating, force 0.0 A
-  if (amps < 0.4) {
+  if (amps < 0.5) {
     amps = 0.0;
   }
   return amps;
