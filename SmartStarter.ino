@@ -40,10 +40,10 @@ const float RATED_FLC = 50.0;    // Temporarily set high (50A) to prevent false 
 const float DRY_RUN_LIMIT = 0.5; // Min current for dry-run detection
 
 // --- HiveMQ Cloud Secure MQTT Settings ---
-char mqtt_server[64] = "93bad3def29641e399de9a7b9c676613.s1.eu.hivemq.cloud";
+char mqtt_server[64] = "YOUR_HASE_OR_CLUSTER.s1.eu.hivemq.cloud"; // Replace with your HiveMQ Cloud cluster
 int mqtt_port        = 8883;
-char mqtt_user[32]   = "tohits";
-char mqtt_pass[64]   = "toh123@TOH";
+char mqtt_user[32]   = "YOUR_MQTT_USERNAME";                   // Replace with your username
+char mqtt_pass[64]   = "YOUR_MQTT_PASSWORD";                   // Replace with your password
 
 const char* mqtt_topic_telemetry = "smartstarter/motor1/telemetry";
 const char* mqtt_topic_control   = "smartstarter/motor1/control";
