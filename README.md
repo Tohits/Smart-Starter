@@ -1,6 +1,6 @@
 # 5 HP Smart Motor Starter (ESP32)
 
-A smart IoT-enabled 3-phase motor starter and monitoring system powered by an **ESP32S**, 3 current sensors (CT sensors), a single-channel relay module, and a **Schneider LC1-D1810** AC contactor.
+A smart IoT-enabled 3-phase motor starter and monitoring system powered by an **ESP32S**, 3 current sensors (CT sensors), a single-channel relay module, and a **Schneider LC1-D1810** AC contactor. It includes both the ESP32 firmware and a modern **Web Frontend Dashboard** ready to be hosted on **Vercel**.
 
 ---
 
@@ -25,11 +25,23 @@ A smart IoT-enabled 3-phase motor starter and monitoring system powered by an **
 | **Relay COM** | Common | Live (230V AC Supply) |
 | **CT Sensor 1** | Output | ESP32 `GPIO 34` (Analog ADC1) |
 | **CT Sensor 2** | Output | ESP32 `GPIO 35` (Analog ADC1) |
-| **CT Sensor 3** | Output | ESP32 `GPIO 32` (Analog ADC1) |
+| **CTSensor 3** | Output | ESP32 `GPIO 32` (Analog ADC1) |
 
 ---
 
-## 📡 Firmware Features
+## 🌐 Web Frontend Dashboard (`index.html`)
+
+The repository includes a modern, responsive Tailwind CSS web dashboard (`index.html`) configured for zero-config deployment on **Vercel**.
+
+### Hosting on Vercel:
+1. Import your GitHub repository (`Tohits/Smart-Starter`) into Vercel.
+2. Leave build settings as default (static site).
+3. Click **Deploy**.
+4. Once deployed, open your Vercel URL, enter your ESP32's local IP address in the header input field, and click **Connect** to monitor phase currents and start/stop your motor remotely!
+
+---
+
+## 📡 ESP32 Firmware Features
 
 - **Wi-Fi Connectivity**: Connects to your local Wi-Fi network.
 - **Real-Time 3-Phase Monitoring**: Samples analog pins and calculates RMS current across all 3 phases.
@@ -50,4 +62,4 @@ A smart IoT-enabled 3-phase motor starter and monitoring system powered by an **
    const char* password = "YOUR_WIFI_PASSWORD";
    ```
 4. Compile and upload to your ESP32S.
-5. Check the Arduino Serial Monitor for the assigned IP address and access `http://<ESP32_IP>/data`.
+5. Access the web dashboard locally or via Vercel pointing to your ESP32 IP.

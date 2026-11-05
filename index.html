@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>5 HP Smart Motor Starter Dashboard</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col justify-between">
+
+    <!-- Header -->
+    <header class="bg-slate-800 border-b border-slate-700 py-4 px-6 shadow-md">
+        <div class="max-w-4xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
+            <h1 class="text-2xl font-bold flex items-center gap-2">
+                ⚙️ 5 HP Smart Motor Starter
+            </h1>
+            <div class="flex items-center gap-2 w-full sm:w-auto">
+                <input type="text" id="espIp" value="192.168.1.100"
+                    class="bg-slate-700 border border-slate-600 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full sm:w-48"
+                    placeholder="ESP32 IP / URL">
+                <button onclick="testConnection()" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition">
+                    Connect
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-4xl mx-auto p-6 w-full flex-grow flex flex-col gap-6 justify-center">
+
+        <!-- Status Card -->
+        <div id="statusCard" class="p-6 rounded-2xl border border-slate-700 bg-slate-800 shadow-lg text-center transition-all duration-300">
+            <p class="text-slate-400 text-sm uppercase tracking-wider mb-1">Motor Status</p>
+            <h2 id="statusText" class="text-3xl font-extrabold tracking-wide">CONNECTING...</h2>
+            <p id="errorText" class="text-rose-400 text-xs mt-2 hidden"></p>
+        </div>
+
+        <!-- 3-Phase Current Monitoring -->
+        <div>
+            <h3 class="text-lg font-semibold mb-3 text-slate-300">3-Phase Current Telemetry</h3>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <!-- Phase 1 -->
+                <div class="bg-slate-800 border border-slate-700 p-5 rounded-xl shadow text-center">
+                    <p class="text-slate-400 text-sm font-medium">Phase 1 (R)</p>
+                    <p id="phase1Val" class="text-3xl font-bold text-blue-400 mt-2">0.0 <span class="text-lg font-normal text-slate-400">A</span></p>
+                </div>
+                <!-- Phase 2 -->
+                <div class="bg-slate-800 border border-slate-700 p-5 rounded-xl shadow text-center">
+                    <p class="text-slate-400 text-sm font-medium">Phase 2 (Y)</p>
+                    <p id="phase2Val" class="text-3xl font-bold text-blue-400 mt-2">0.0 <span class="text-lg font-normal text-slate-400">A</span></p>
+                </div>
+                <!-- Phase 3 -->
+                <div class="bg-slate-800 border border-slate-700 p-5 rounded-xl shadow text-center">
+                    <p class="text-slate-400 text-sm font-medium">Phase 3 (B)</p>
+                    <p id="phase3Val" class="text-3xl font-bold text-blue-400 mt-2">0.0 <span class="text-lg font-normal text-slate-400">A</span></p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Control Buttons -->
+        <div class="grid grid-cols-2 gap-4 mt-2">
+            <button onclick="sendControl('ON')" class="bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white py-4 rounded-xl font-bold text-xl shadow-lg transition flex items-center justify-center gap-2">
+                🟢 START MOTOR
+            </button>
+            <button onclick="sendControl('OFF')" class="bg-rose-600 hover:bg-rose-500 active:scale-95 text-white py-4 rounded-xl font-bold text-xl shadow-lg transition flex items-center justify-center gap-2">
+                🔴 STOP MOTOR
+            </button>
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-slate-800 border-t border-slate-700 py-3 px-6 text-center text-xs text-slate-500">
+        Smart Starter IoT Dashboard &bull; Hosted on Vercel
+    </footer>
+
+    <!-- JavaScript Logic -->
+    <script>
+        function getBaseUrl() {
+            let ip = document.getElementById('espIp').value.trim();
+            if (!ip.startsWith('http://') && !ip.startsWith('https://')) {
+                ip = 'http://' + ip;
+            }
+            return ip;
+        }
+
+        async function fetchData() {
+            const baseUrl = getBaseUrl();
+            const statusCard = document.getElementById('statusCard');
+            const statusText = document.getElementById('statusText');
+            const errorText = document.getElementById('errorText');
+
+            try {
+                const response = await fetch(`${baseUrl}/data`, { mode: 'cors' });
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+                const data = await response.json();
+
+                // Update Status
+                statusText.innerText = data.status;
+                if (data.status === 'ON') {
+                    statusCard.className = "p-6 rounded-2xl border border-emerald-500 bg-emerald-950/40 shadow-lg text-center transition-all duration-300";
+                    statusText.className = "text-3xl font-extrabold tracking-wide text-emerald-400";
+                } else {
+                    statusCard.className = "p-6 rounded-2xl border border-rose-500 bg-rose-950/40 shadow-lg text-center transition-all duration-300";
+                    statusText.className = "text-3xl font-extrabold tracking-wide text-rose-400";
+                }
+
+                // Update Amps
+                document.getElementById('phase1Val').innerHTML = `${data.phase1} <span class="text-lg font-normal text-slate-400">A</span>`;
+                document.getElementById('phase2Val').innerHTML = `${data.phase2} <span class="text-lg font-normal text-slate-400">A</span>`;
+                document.getElementById('phase3Val').innerHTML = `${data.phase3} <span class="text-lg font-normal text-slate-400">A</span>`;
+
+                errorText.classList.add('hidden');
+            } catch (err) {
+                statusText.innerText = "OFFLINE";
+                statusCard.className = "p-6 rounded-2xl border border-amber-500 bg-amber-950/40 shadow-lg text-center transition-all duration-300";
+                statusText.className = "text-3xl font-extrabold tracking-wide text-amber-400";
+
+                errorText.innerText = "Connection failed. Check IP address or CORS.";
+                errorText.classList.remove('hidden');
+            }
+        }
+
+        async function sendControl(state) {
+            const baseUrl = getBaseUrl();
+            try {
+                const response = await fetch(`${baseUrl}/control?state=${state}`, {
+                    method: 'POST',
+                    mode: 'cors'
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    document.getElementById('statusText').innerText = data.state;
+                    fetchData();
+                }
+            } catch (err) {
+                alert("Failed to send command to ESP32: " + err.message);
+            }
+        }
+
+        function testConnection() {
+            fetchData();
+        }
+
+        // Poll every 2 seconds
+        setInterval(fetchData, 2000);
+        window.onload = fetchData;
+    </script>
+</body>
+</html>
