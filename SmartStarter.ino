@@ -2,7 +2,7 @@
  * 5 HP 3-Phase Smart Motor Starter Firmware for ESP32S (Global Cloud-Only Edition)
  * Features:
  * - Captive Portal (WiFiManager) for easy Wi-Fi setup
- * - Non-blocking 3-Phase Current Monitoring with DC Bias & Floating-Pin Detection (Returns 0.0A when disconnected)
+ * - Bulletproof 3-Phase Current Monitoring with Dynamic DC Baseline & Zero-Clamping
  * - Schneider LC1-D1810 Contactor Control via Single-Channel Relay on Pin P5 (GPIO 5)
  * - 100% Global Cloud Control & Telemetry via Secure HiveMQ MQTT (Port 8883)
  * - NTP Time Synchronization & Time Scheduling
@@ -214,37 +214,41 @@ void loop() {
   }
 }
 
-// Function to calculate RMS current with DC Bias & Disconnected Pin Detection
+// Function to calculate RMS current with Dynamic DC Baseline & Zero-Clamping
 float readRMSCurrent(int pin) {
-  long sum = 0;
-  long rawSum = 0;
   int samples = 100;
-  int zeroOffset = 2048; // 1.65V center for CT sensors (3.3V / 2)
+  long rawSum = 0;
 
   for (int i = 0; i < samples; i++) {
-    int raw = analogRead(pin);
-    rawSum += raw;
-    int centered = raw - zeroOffset;
-    sum += (long)centered * centered;
+    rawSum += analogRead(pin);
     delayMicroseconds(100);
   }
 
-  // Check average DC level. A proper CT sensor with biasing circuit hovers around 2048.
-  // If nothing is connected (floating pin), rawAverage will be erratic or outside [500, 3500].
   long rawAverage = rawSum / samples;
-  if (rawAverage < 500 || rawAverage > 3500) {
-    return 0.0; // Pin is floating or disconnected -> Return 0.0 A strictly
+
+  // If grounded (rawAverage < 800) or floating/disconnected (rawAverage > 3200), return 0.0 A strictly
+  if (rawAverage < 800 || rawAverage > 3200) {
+    return 0.0;
+  }
+
+  // Calculate AC RMS centered around the actual measured DC baseline (rawAverage)
+  long sum = 0;
+  for (int i = 0; i < samples; i++) {
+    int raw = analogRead(pin);
+    int centered = raw - rawAverage;
+    sum += (long)centered * centered;
+    delayMicroseconds(100);
   }
 
   float rmsRaw = sqrt((float)sum / samples);
   float voltage = (rmsRaw / 4095.0) * 3.3;
 
-  if (voltage < 0.35) {
+  if (voltage < 0.20) {
     return 0.0;
   }
 
-  float amps = voltage * 12.0;
-  if (amps < 0.8) {
+  float amps = voltage * 10.0;
+  if (amps < 0.5) {
     amps = 0.0;
   }
   return amps;
