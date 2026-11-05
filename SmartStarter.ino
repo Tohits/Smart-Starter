@@ -6,7 +6,7 @@
  * - Schneider LC1-D1810 Contactor Control via Single-Channel Relay on Pin P5 (GPIO 5)
  * - 100% Global Cloud Control, Telemetry & Remote Reboot via Secure HiveMQ MQTT (Port 8883)
  * - NTP Time Synchronization & Time Scheduling
- * - Hardware Watchdog Timer (WDT) for Fail-Proof Auto-Recovery
+ * - Hardware Watchdog Timer (WDT) for Fail-Proof Auto-Recovery (Compatible with ESP32 Core v2 & v3)
  * - Continuous Safety Protections (Overload, Dry-Run, Phase Failure)
  */
 
@@ -123,9 +123,19 @@ void setup() {
   delay(1000);
   Serial.println("\n\n--- Smart Starter ESP32 Booting ---");
 
-  // --- Hardware Watchdog Timer (WDT) Setup (30 seconds timeout) ---
+  // --- Hardware Watchdog Timer (WDT) Setup (Cross-Version ESP32 Core Support) ---
+#if defined(ESP_ARDUINO_VERSION) && ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
+  esp_task_wdt_config_t twdt_config = {
+      .timeout_ms = 30000,
+      .idle_core_mask = 0,
+      .trigger_panic = true
+  };
+  esp_task_wdt_init(&twdt_config);
+  esp_task_wdt_add(NULL);
+#else
   esp_task_wdt_init(30, true);
   esp_task_wdt_add(NULL);
+#endif
 
   pinMode(RELAY_PIN, OUTPUT);
   digitalWrite(RELAY_PIN, RELAY_OFF); // Ensure relay is OFF initially
