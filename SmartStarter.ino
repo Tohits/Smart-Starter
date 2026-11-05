@@ -12,7 +12,7 @@
 #include <WiFi.h>
 #include <WiFiManager.h>
 #include <Update.h>
-#include <WebServer.h> // Kept solely for local emergency OTA updates if needed
+#include <WebServer.h>
 #include <WiFiClientSecure.h>
 #include <PubSubClient.h>
 #include "time.h"
@@ -23,6 +23,15 @@ PubSubClient mqttClient(espClient);
 
 // Pin Definitions
 const int RELAY_PIN = 23;     // Connected to Single-Channel Relay IN
+
+// --- RELAY LOGIC CONFIGURATION ---
+// Most common single-channel 5V/3.3V relay modules are ACTIVE LOW:
+// - LOW turns the relay ON (energizes coil)
+// - HIGH turns the relay OFF (de-energizes coil)
+// If your relay is Active High, swap RELAY_ON to HIGH and RELAY_OFF to LOW.
+const int RELAY_ON = LOW;
+const int RELAY_OFF = HIGH;
+
 const int CT1_PIN = 34;       // Phase 1 Current Sensor (Analog ADC1)
 const int CT2_PIN = 35;       // Phase 2 Current Sensor (Analog ADC1)
 const int CT3_PIN = 32;       // Phase 3 Current Sensor (Analog ADC1)
@@ -63,20 +72,22 @@ void callback(char* topic, byte* payload, unsigned int length) {
     message += (char)payload[i];
   }
   message.trim();
-  Serial.print("Global MQTT Command received [");
+  Serial.print(">>> MQTT Message received on topic [");
   Serial.print(topic);
-  Serial.print("] ");
+  Serial.print("]: ");
   Serial.println(message);
 
   if (String(topic) == mqtt_topic_control) {
     if (message == "ON") {
+      Serial.println(">>> Command matched: Turning MOTOR ON");
       setMotorState(true);
-      Serial.println("Motor Started via Global Cloud MQTT");
     } else if (message == "OFF") {
+      Serial.println(">>> Command matched: Turning MOTOR OFF");
       setMotorState(false);
-      Serial.println("Motor Stopped via Global Cloud MQTT");
+    } else {
+      Serial.print(">>> Unknown command payload: ");
+      Serial.println(message);
     }
-    // Publish updated status immediately
     publishTelemetry();
   }
 }
@@ -102,9 +113,11 @@ void reconnectMqtt() {
 
 void setup() {
   Serial.begin(115200);
+  delay(1000);
+  Serial.println("\n\n--- Smart Starter ESP32 Booting ---");
 
   pinMode(RELAY_PIN, OUTPUT);
-  digitalWrite(RELAY_PIN, LOW); // Contactor OFF by default
+  digitalWrite(RELAY_PIN, RELAY_OFF); // Ensure relay is OFF initially
 
   // --- Captive Portal Wi-Fi Setup ---
   WiFiManager wifiManager;
@@ -126,7 +139,7 @@ void setup() {
   // --- NTP Time Sync ---
   configTime(gmtOffset_sec, daylightOffset_sec, "pool.ntp.org", "time.nist.gov");
 
-  // --- Emergency OTA Web Route (Optional local fallback) ---
+  // --- Emergency OTA Web Route ---
   server.on("/update", HTTP_GET, []() {
     server.send(200, "text/html",
       "<form method='POST' action='/update' enctype='multipart/form-data'>"
@@ -218,12 +231,15 @@ float readRMSCurrent(int pin) {
 
 void tripMotor() {
   motorState = false;
-  digitalWrite(RELAY_PIN, LOW);
+  digitalWrite(RELAY_PIN, RELAY_OFF);
+  Serial.println("Relay turned OFF (Trip)");
 }
 
 void setMotorState(bool state) {
   motorState = state;
-  digitalWrite(RELAY_PIN, state ? HIGH : LOW);
+  digitalWrite(RELAY_PIN, state ? RELAY_ON : RELAY_OFF);
+  Serial.print("Relay GPIO 23 set to: ");
+  Serial.println(state ? "RELAY_ON (LOW)" : "RELAY_OFF (HIGH)");
 }
 
 void publishTelemetry() {
