@@ -55,7 +55,7 @@
         </div>
 
         <!-- Status Card -->
-        <div id="statusCard" class="p-6 rounded-2xl border border-slate-700 bg-slate-800 shadow-lg text-center transition-all duration-300">
+        <div id="statusCard" class="p-6 rounded-2xl border border-slate-700 bg-slate-800 shadow-lg text-center transition-all duration-200">
             <p class="text-slate-400 text-sm uppercase tracking-wider mb-1">Motor Status</p>
             <h2 id="statusText" class="text-3xl font-extrabold tracking-wide">CONNECTING...</h2>
             <p id="errorText" class="text-rose-400 text-xs mt-2 hidden"></p>
@@ -100,45 +100,34 @@
         Smart Starter IoT PWA Dashboard &bull; Hosted on Vercel
     </footer>
 
-    <!-- JavaScript Logic & PWA Install Prompt -->
+    <!-- Optimized High-Performance JavaScript -->
     <script>
         let deferredPrompt;
         const installBanner = document.getElementById('installBanner');
         const installBtn = document.getElementById('installBtn');
 
         window.addEventListener('beforeinstallprompt', (e) => {
-            // Prevent the mini-infobar from appearing on mobile
             e.preventDefault();
-            // Stash the event so it can be triggered later.
             deferredPrompt = e;
-            // Show the install banner
             installBanner.classList.remove('hidden');
         });
 
         installBtn.addEventListener('click', async () => {
             if (deferredPrompt) {
-                // Show the install prompt
                 deferredPrompt.prompt();
-                // Wait for the user to respond to the prompt
                 const { outcome } = await deferredPrompt.userChoice;
-                if (outcome === 'accepted') {
-                    console.log('User accepted the install prompt');
-                }
                 deferredPrompt = null;
                 installBanner.classList.add('hidden');
             }
         });
 
         window.addEventListener('appinstalled', () => {
-            console.log('PWA was installed successfully');
             installBanner.classList.add('hidden');
         });
 
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/sw.js')
-                    .then(reg => console.log('ServiceWorker registered: ', reg.scope))
-                    .catch(err => console.log('ServiceWorker registration failed: ', err));
+                navigator.serviceWorker.register('/sw.js').catch(() => {});
             });
         }
 
@@ -176,21 +165,28 @@
             const statusText = document.getElementById('statusText');
             const errorText = document.getElementById('errorText');
 
-            setConnectionState('connecting', 'Connecting...');
+            // Fast fetch with 1.5s AbortController timeout
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 1500);
 
             try {
-                const response = await fetch(`${baseUrl}/data`, { mode: 'cors' });
+                const response = await fetch(`${baseUrl}/data`, {
+                    mode: 'cors',
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
                 const data = await response.json();
 
-                // Update Status
+                // Update Status immediately
                 statusText.innerText = data.status;
                 if (data.status === 'ON') {
-                    statusCard.className = "p-6 rounded-2xl border border-emerald-500 bg-emerald-950/40 shadow-lg text-center transition-all duration-300";
+                    statusCard.className = "p-6 rounded-2xl border border-emerald-500 bg-emerald-950/40 shadow-lg text-center transition-all duration-200";
                     statusText.className = "text-3xl font-extrabold tracking-wide text-emerald-400";
                 } else {
-                    statusCard.className = "p-6 rounded-2xl border border-rose-500 bg-rose-950/40 shadow-lg text-center transition-all duration-300";
+                    statusCard.className = "p-6 rounded-2xl border border-rose-500 bg-rose-950/40 shadow-lg text-center transition-all duration-200";
                     statusText.className = "text-3xl font-extrabold tracking-wide text-rose-400";
                 }
 
@@ -202,18 +198,24 @@
                 setConnectionState('connected', 'Live & Connected');
                 errorText.classList.add('hidden');
             } catch (err) {
+                clearTimeout(timeoutId);
                 statusText.innerText = "OFFLINE";
-                statusCard.className = "p-6 rounded-2xl border border-amber-500 bg-amber-950/40 shadow-lg text-center transition-all duration-300";
+                statusCard.className = "p-6 rounded-2xl border border-amber-500 bg-amber-950/40 shadow-lg text-center transition-all duration-200";
                 statusText.className = "text-3xl font-extrabold tracking-wide text-amber-400";
 
                 setConnectionState('disconnected', 'Device Offline');
-                errorText.innerText = "Connection failed. Check IP address or CORS.";
-                errorText.classList.add('hidden');
+                errorText.innerText = "Connection timeout or offline.";
+                errorText.classList.remove('hidden');
             }
         }
 
         async function sendControl(state) {
             const baseUrl = getBaseUrl();
+
+            // Optimistic UI update for instant feedback
+            const statusText = document.getElementById('statusText');
+            statusText.innerText = state + " (Sending...)";
+
             try {
                 const response = await fetch(`${baseUrl}/control?state=${state}`, {
                     method: 'POST',
@@ -221,10 +223,11 @@
                 });
                 if (response.ok) {
                     const data = await response.json();
-                    document.getElementById('statusText').innerText = data.state;
+                    statusText.innerText = data.state;
                     fetchData();
                 }
             } catch (err) {
+                statusText.innerText = "ERROR";
                 alert("Failed to send command to ESP32: " + err.message);
             }
         }
@@ -233,8 +236,8 @@
             fetchData();
         }
 
-        // Poll every 2 seconds
-        setInterval(fetchData, 2000);
+        // High-performance polling interval (1.5 seconds)
+        setInterval(fetchData, 1500);
         window.onload = fetchData;
     </script>
 </body>
