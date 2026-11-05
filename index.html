@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>5 HP Smart Motor Starter Dashboard (Global Cloud)</title>
+    <title>5 HP Smart Motor Starter Dashboard (Cloud)</title>
     <!-- PWA Manifest & Theme -->
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#1e293b">
@@ -54,8 +54,20 @@
         <!-- Status Card -->
         <div id="statusCard" class="p-6 rounded-2xl border border-slate-700 bg-slate-800 shadow-lg text-center transition-all duration-200">
             <p class="text-slate-400 text-sm uppercase tracking-wider mb-1">Motor Status</p>
-            <h2 id="statusText" class="text-3xl font-extrabold tracking-wide">CONNECTING...</h2>
+            <h2 id="statusText" class="text-3xl font-extrabold tracking-wide">WAITING FOR DATA...</h2>
             <p id="lastSync" class="text-slate-400 text-xs mt-2">Last Sync: Never</p>
+        </div>
+
+        <!-- ESP32 Hardware Status Bar -->
+        <div class="bg-slate-800 border border-slate-700 p-4 rounded-xl shadow flex flex-wrap items-center justify-between gap-4 text-sm">
+            <div class="flex items-center gap-2">
+                <span class="text-slate-400">ESP32 Hardware:</span>
+                <span id="espHealthBadge" class="px-2 py-0.5 rounded-md text-xs font-bold bg-amber-500/20 text-amber-400">Offline</span>
+            </div>
+            <div class="flex items-center gap-4 text-xs text-slate-300">
+                <div>📶 Wi-Fi RSSI: <span id="wifiRssi" class="font-bold text-white">-- dBm</span></div>
+                <div>⏱️ Uptime: <span id="espUptime" class="font-bold text-white">--</span></div>
+            </div>
         </div>
 
         <!-- 3-Phase Current Monitoring -->
@@ -97,9 +109,10 @@
         Smart Starter Global Cloud Dashboard &bull; Powered by HiveMQ Cloud & Vercel
     </footer>
 
-    <!-- Global Cloud MQTT WebSockets Client -->
+    <!-- Global Cloud MQTT WebSockets Client & ESP Status Monitor -->
     <script>
         let deferredPrompt;
+        let lastMessageTime = 0;
         const installBanner = document.getElementById('installBanner');
         const installBtn = document.getElementById('installBtn');
 
@@ -148,6 +161,13 @@
             }
         }
 
+        function formatUptime(seconds) {
+            const hrs = Math.floor(seconds / 3600);
+            const mins = Math.floor((seconds % 3600) / 60);
+            const secs = seconds % 60;
+            return `${hrs}h ${mins}m ${secs}s`;
+        }
+
         // --- HiveMQ Cloud WebSocket Connection ---
         const mqttHost = '93bad3def29641e399de9a7b9c676613.s1.eu.hivemq.cloud';
         const mqttPort = 8884; // WebSocket Secure port for HiveMQ Cloud
@@ -192,6 +212,7 @@
         client.on('message', (topic, payload) => {
             if (topic === 'smartstarter/motor1/telemetry') {
                 try {
+                    lastMessageTime = Date.now();
                     const data = JSON.parse(payload.toString());
                     const statusCard = document.getElementById('statusCard');
                     const statusText = document.getElementById('statusText');
@@ -215,12 +236,31 @@
                         document.getElementById('lastSync').innerText = `Last Sync: ${data.time}`;
                     }
 
+                    // ESP32 Hardware Telemetry
+                    if (data.rssi !== undefined) {
+                        document.getElementById('wifiRssi').innerText = `${data.rssi} dBm`;
+                    }
+                    if (data.uptime !== undefined) {
+                        document.getElementById('espUptime').innerText = formatUptime(data.uptime);
+                    }
+
+                    document.getElementById('espHealthBadge').className = "px-2 py-0.5 rounded-md text-xs font-bold bg-emerald-500/20 text-emerald-400";
+                    document.getElementById('espHealthBadge').innerText = "Online (Live)";
+
                     setConnectionState('connected', 'Live & Connected');
                 } catch (e) {
                     console.error('Failed to parse telemetry JSON:', e);
                 }
             }
         });
+
+        // Watchdog timer: if no ESP32 telemetry received in 8 seconds, mark ESP32 as offline
+        setInterval(() => {
+            if (lastMessageTime > 0 && (Date.now() - lastMessageTime > 8000)) {
+                document.getElementById('espHealthBadge').className = "px-2 py-0.5 rounded-md text-xs font-bold bg-rose-500/20 text-rose-400";
+                document.getElementById('espHealthBadge').innerText = "ESP32 Offline";
+            }
+        }, 2000);
 
         function sendControl(state) {
             const statusText = document.getElementById('statusText');

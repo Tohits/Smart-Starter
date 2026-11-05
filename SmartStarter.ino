@@ -4,7 +4,7 @@
  * - Captive Portal (WiFiManager) for easy Wi-Fi setup
  * - Non-blocking 3-Phase Current Monitoring (CT Sensors) with Zero-Noise Filtering
  * - Schneider LC1-D1810 Contactor Control via Single-Channel Relay (Active LOW)
- * - 100% Global Cloud Control & Telemetry via Secure HiveMQ MQTT (Port 8883)
+ * - 100% Global Cloud Control & Telemetry via Secure HiveMQ MQTT (Port 8883) with RSSI & Uptime
  * - NTP Time Synchronization & Time Scheduling
  * - Continuous Safety Protections (Overload, Dry-Run, Phase Failure)
  */
@@ -264,8 +264,10 @@ void setMotorState(bool state) {
 
 void publishTelemetry() {
   float i1 = readRMSCurrent(CT1_PIN);
-  float i2 = readRMSCurrent(CT3_PIN); // Note: CT3_PIN used correctly
+  float i2 = readRMSCurrent(CT2_PIN);
   float i3 = readRMSCurrent(CT3_PIN);
+  long uptimeSec = millis() / 1000;
+  int rssi = WiFi.RSSI();
 
   struct tm timeinfo;
   char timeStr[32] = "NTP Syncing...";
@@ -276,9 +278,11 @@ void publishTelemetry() {
   String payload = "{";
   payload += "\"status\":\"" + String(motorState ? "ON" : "OFF") + "\",";
   payload += "\"phase1\":" + String(i1, 2) + ",";
-  payload += "\"phase2\":" + String(readRMSCurrent(CT2_PIN), 2) + ",";
-  payload += "\"phase3\":" + String(readRMSCurrent(CT3_PIN), 2) + ",";
+  payload += "\"phase2\":" + String(i2, 2) + ",";
+  payload += "\"phase3\":" + String(i3, 2) + ",";
   payload += "\"time\":\"" + String(timeStr) + "\",";
+  payload += "\"rssi\":" + String(rssi) + ",";
+  payload += "\"uptime\":" + String(uptimeSec) + ",";
   payload += "\"scheduleEnabled\":" + String(scheduleEnabled ? "true" : "false");
   payload += "}";
 
