@@ -4,7 +4,7 @@
  * - Captive Portal (WiFiManager) for easy Wi-Fi setup
  * - 3-Phase Current Monitoring (CT Sensors) & Overload/Dry-Run Protection
  * - Schneider LC1-D1810 Contactor Control via Single-Channel Relay
- * - MQTT Client for Cloud Telemetry & Remote Control (HiveMQ / MQTT Brokers)
+ * - Secure MQTT (HiveMQ Cloud on Port 8883 with TLS & Authentication)
  * - NTP Time Synchronization & Time Scheduling
  * - Web-Based OTA (Over-The-Air) Firmware Update
  * - CORS-enabled REST API for Vercel Web Dashboard
@@ -14,11 +14,12 @@
 #include <WebServer.h>
 #include <WiFiManager.h>
 #include <Update.h>
+#include <WiFiClientSecure.h>
 #include <PubSubClient.h>
 #include "time.h"
 
 WebServer server(80);
-WiFiClient espClient;
+WiFiClientSecure espClient;
 PubSubClient mqttClient(espClient);
 
 // Pin Definitions
@@ -32,11 +33,14 @@ bool motorState = false;
 const float RATED_FLC = 9.0;     // Max allowable current before overload trip (Amps)
 const float DRY_RUN_LIMIT = 1.5; // Min current for pump dry-run detection (Amps)
 
-// --- MQTT Broker Settings ---
-const char* mqtt_server = "broker.hivemq.com"; // Public test broker (Change for production)
-const int mqtt_port = 1883;
+// --- HiveMQ Cloud Secure MQTT Settings ---
+char mqtt_server[64] = "93bad3def29641e399de9a7b9c676613.s1.eu.hivemq.cloud";
+int mqtt_port        = 8883;
+char mqtt_user[32]   = "tohits";
+char mqtt_pass[64]   = "toh123@TOH";
+
 const char* mqtt_topic_telemetry = "smartstarter/motor1/telemetry";
-const char* mqtt_topic_control = "smartstarter/motor1/control";
+const char* mqtt_topic_control   = "smartstarter/motor1/control";
 
 // NTP Time Servers & Settings (UTC+5:30 = 19800 sec)
 const long gmtOffset_sec = 19800;
@@ -65,26 +69,28 @@ void callback(char* topic, byte* payload, unsigned int length) {
   if (String(topic) == mqtt_topic_control) {
     if (message == "ON") {
       setMotorState(true);
-      Serial.println("Motor Started via MQTT");
+      Serial.println("Motor Started via HiveMQ MQTT");
     } else if (message == "OFF") {
       setMotorState(false);
-      Serial.println("Motor Stopped via MQTT");
+      Serial.println("Motor Stopped via HiveMQ MQTT");
     }
   }
 }
 
 void reconnectMqtt() {
   while (!mqttClient.connected()) {
-    Serial.print("Attempting MQTT connection...");
+    Serial.print("Attempting HiveMQ Secure MQTT connection...");
     String clientId = "SmartStarterClient-";
     clientId += String(random(0xffff), HEX);
-    if (mqttClient.connect(clientId.c_str())) {
-      Serial.println("connected");
+
+    // Connect with Username and Password
+    if (mqttClient.connect(clientId.c_str(), mqtt_user, mqtt_pass)) {
+      Serial.println("connected securely!");
       mqttClient.subscribe(mqtt_topic_control);
     } else {
       Serial.print("failed, rc=");
       Serial.print(mqttClient.state());
-      Serial.println(" try again in 5 seconds");
+      Serial.println(" retrying in 5 seconds");
       delay(5000);
     }
   }
@@ -108,7 +114,8 @@ void setup() {
   Serial.print("ESP32 IP Address: ");
   Serial.println(WiFi.localIP());
 
-  // --- MQTT Setup ---
+  // --- Secure MQTT Setup (TLS/SSL on Port 8883) ---
+  espClient.setInsecure(); // Skip strict CA cert check for HiveMQ Cloud
   mqttClient.setServer(mqtt_server, mqtt_port);
   mqttClient.setCallback(callback);
 
@@ -267,7 +274,7 @@ void handleGetData() {
   json += "\"status\":\"" + String(motorState ? "ON" : "OFF") + "\",";
   json += "\"phase1\":" + String(i1, 2) + ",";
   json += "\"phase2\":" + String(i2, 2) + ",";
-  json += "\"phase3\":" + String(i3, 2);
+  json += "\"phase3\":" + String(i3, 2) + ",";
   json += "\"time\":\"" + String(timeStr) + "\",";
   json += "\"scheduleEnabled\":" + String(scheduleEnabled ? "true" : "false");
   json += "}";
