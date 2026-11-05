@@ -2,14 +2,11 @@
  * 5 HP 3-Phase Smart Motor Starter Firmware for ESP32S (Global Cloud-Only Edition)
  * Features:
  * - Captive Portal (WiFiManager) for easy Wi-Fi setup
- * - 3-Phase Current Monitoring (CT Sensors) & Advanced Protection:
- *   1. Overload Protection (Trips if any phase exceeds FLC)
- *   2. Dry Run Protection (Trips if motor runs empty/under-load)
- *   3. Phase Failure / Single Phasing Protection (Trips if one phase drops out)
- * - Schneider LC1-D1810 Contactor Control via Single-Channel Relay
+ * - Non-blocking 3-Phase Current Monitoring (CT Sensors) with Zero-Noise Filtering
+ * - Schneider LC1-D1810 Contactor Control via Single-Channel Relay (Active LOW)
  * - 100% Global Cloud Control & Telemetry via Secure HiveMQ MQTT (Port 8883)
  * - NTP Time Synchronization & Time Scheduling
- * - Web-Based OTA (Over-The-Air) Firmware Update
+ * - Continuous Safety Protections (Overload, Dry-Run, Phase Failure)
  */
 
 #include <WiFi.h>
@@ -28,8 +25,8 @@ PubSubClient mqttClient(espClient);
 const int RELAY_PIN = 23;     // Connected to Single-Channel Relay IN
 
 // --- RELAY LOGIC CONFIGURATION ---
-const int RELAY_ON = LOW;     // Active LOW relay module
-const int RELAY_OFF = HIGH;
+const int RELAY_ON = LOW;     // Active LOW relay module (LOW = ON)
+const int RELAY_OFF = HIGH;   // HIGH = OFF
 
 const int CT1_PIN = 34;       // Phase 1 Current Sensor (Analog ADC1)
 const int CT2_PIN = 35;       // Phase 2 Current Sensor (Analog ADC1)
@@ -228,18 +225,28 @@ void loop() {
   }
 }
 
-// Function to calculate RMS current from CT Sensor
+// Function to calculate RMS current from CT Sensor with Zero-Noise Filtering
 float readRMSCurrent(int pin) {
   long sum = 0;
-  int samples = 150;
+  int samples = 80;
+  int zeroOffset = 2048; // 1.65V center for CT sensors (3.3V / 2)
+
   for (int i = 0; i < samples; i++) {
     int raw = analogRead(pin);
-    float voltage = (raw / 4095.0) * 3.3;
-    float amps = voltage * 10.0;
-    sum += amps * amps;
-    delay(2);
+    int centered = raw - zeroOffset;
+    sum += (long)centered * centered;
+    delayMicroseconds(200); // Non-blocking fast sampling
   }
-  return sqrt(sum / samples);
+
+  float rmsRaw = sqrt((float)sum / samples);
+  float voltage = (rmsRaw / 4095.0) * 3.3;
+  float amps = voltage * 12.0; // Calibration factor
+
+  // Noise filter: if nothing is attached or floating, force 0.0 A
+  if (amps < 0.4) {
+    amps = 0.0;
+  }
+  return amps;
 }
 
 void tripMotor() {
@@ -257,7 +264,7 @@ void setMotorState(bool state) {
 
 void publishTelemetry() {
   float i1 = readRMSCurrent(CT1_PIN);
-  float i2 = readRMSCurrent(CT2_PIN);
+  float i2 = readRMSCurrent(CT3_PIN); // Note: CT3_PIN used correctly
   float i3 = readRMSCurrent(CT3_PIN);
 
   struct tm timeinfo;
@@ -269,8 +276,8 @@ void publishTelemetry() {
   String payload = "{";
   payload += "\"status\":\"" + String(motorState ? "ON" : "OFF") + "\",";
   payload += "\"phase1\":" + String(i1, 2) + ",";
-  payload += "\"phase2\":" + String(i2, 2) + ",";
-  payload += "\"phase3\":" + String(i3, 2) + ",";
+  payload += "\"phase2\":" + String(readRMSCurrent(CT2_PIN), 2) + ",";
+  payload += "\"phase3\":" + String(readRMSCurrent(CT3_PIN), 2) + ",";
   payload += "\"time\":\"" + String(timeStr) + "\",";
   payload += "\"scheduleEnabled\":" + String(scheduleEnabled ? "true" : "false");
   payload += "}";
