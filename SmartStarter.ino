@@ -44,9 +44,11 @@ void setup() {
   Serial.print("ESP32 IP Address: ");
   Serial.println(WiFi.localIP());
 
-  // Web Server Routes
+  // Web Server Routes & CORS Handlers
   server.on("/data", HTTP_GET, handleGetData);
   server.on("/control", HTTP_POST, handleControl);
+  server.on("/data", HTTP_OPTIONS, handleCors);
+  server.on("/control", HTTP_OPTIONS, handleCors);
 
   server.begin();
   Serial.println("Smart Starter HTTP Server Started");
@@ -96,7 +98,19 @@ void tripMotor() {
   digitalWrite(RELAY_PIN, LOW); // De-energize relay -> release contactor
 }
 
+void addCorsHeaders() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  server.sendHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  server.sendHeader("Access-Control-Allow-Headers", "Content-Type");
+}
+
+void handleCors() {
+  addCorsHeaders();
+  server.send(204);
+}
+
 void handleGetData() {
+  addCorsHeaders();
   float i1 = readRMSCurrent(CT1_PIN);
   float i2 = readRMSCurrent(CT2_PIN);
   float i3 = readRMSCurrent(CT3_PIN);
@@ -112,6 +126,7 @@ void handleGetData() {
 }
 
 void handleControl() {
+  addCorsHeaders();
   if (server.hasArg("state")) {
     String state = server.arg("state");
     if (state == "ON") {
