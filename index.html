@@ -12,13 +12,20 @@
     <!-- Header -->
     <header class="bg-slate-800 border-b border-slate-700 py-4 px-6 shadow-md">
         <div class="max-w-4xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
-            <h1 class="text-2xl font-bold flex items-center gap-2">
-                ⚙️ 5 HP Smart Motor Starter
-            </h1>
+            <div class="flex items-center gap-3">
+                <h1 class="text-2xl font-bold flex items-center gap-2">
+                    ⚙️ 5 HP Smart Motor Starter
+                </h1>
+                <!-- Connection State Badge -->
+                <span id="connBadge" class="px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center gap-1.5">
+                    <span id="connDot" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+                    <span id="connText">Connecting...</span>
+                </span>
+            </div>
             <div class="flex items-center gap-2 w-full sm:w-auto">
                 <input type="text" id="espIp" value="192.168.1.100"
                     class="bg-slate-700 border border-slate-600 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full sm:w-48"
-                    placeholder="ESP32 IP / URL">
+                    placeholder="ESP32 IP / URL" aria-label="ESP32 IP Address">
                 <button onclick="testConnection()" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition">
                     Connect
                 </button>
@@ -85,11 +92,33 @@
             return ip;
         }
 
+        function setConnectionState(state, message) {
+            const badge = document.getElementById('connBadge');
+            const dot = document.getElementById('connDot');
+            const text = document.getElementById('connText');
+
+            if (state === 'connected') {
+                badge.className = "px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5";
+                dot.className = "w-2 h-2 rounded-full bg-emerald-400";
+                text.innerText = message || "Connected";
+            } else if (state === 'connecting') {
+                badge.className = "px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center gap-1.5";
+                dot.className = "w-2 h-2 rounded-full bg-amber-400 animate-pulse";
+                text.innerText = message || "Connecting...";
+            } else {
+                badge.className = "px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center gap-1.5";
+                dot.className = "w-2 h-2 rounded-full bg-rose-400";
+                text.innerText = message || "Disconnected";
+            }
+        }
+
         async function fetchData() {
             const baseUrl = getBaseUrl();
             const statusCard = document.getElementById('statusCard');
             const statusText = document.getElementById('statusText');
             const errorText = document.getElementById('errorText');
+
+            setConnectionState('connecting', 'Connecting...');
 
             try {
                 const response = await fetch(`${baseUrl}/data`, { mode: 'cors' });
@@ -112,12 +141,14 @@
                 document.getElementById('phase2Val').innerHTML = `${data.phase2} <span class="text-lg font-normal text-slate-400">A</span>`;
                 document.getElementById('phase3Val').innerHTML = `${data.phase3} <span class="text-lg font-normal text-slate-400">A</span>`;
 
+                setConnectionState('connected', 'Live & Connected');
                 errorText.classList.add('hidden');
             } catch (err) {
                 statusText.innerText = "OFFLINE";
                 statusCard.className = "p-6 rounded-2xl border border-amber-500 bg-amber-950/40 shadow-lg text-center transition-all duration-300";
                 statusText.className = "text-3xl font-extrabold tracking-wide text-amber-400";
 
+                setConnectionState('disconnected', 'Device Offline');
                 errorText.innerText = "Connection failed. Check IP address or CORS.";
                 errorText.classList.remove('hidden');
             }
