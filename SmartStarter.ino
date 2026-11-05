@@ -2,7 +2,7 @@
  * 5 HP 3-Phase Smart Motor Starter Firmware for ESP32S (Global Cloud-Only Edition)
  * Features:
  * - Captive Portal (WiFiManager) for easy Wi-Fi setup
- * - Non-blocking 3-Phase Current Monitoring with Strict Voltage Threshold & Noise Suppression
+ * - Non-blocking 3-Phase Current Monitoring with DC Bias & Floating-Pin Detection (Returns 0.0A when disconnected)
  * - Schneider LC1-D1810 Contactor Control via Single-Channel Relay on Pin P5 (GPIO 5)
  * - 100% Global Cloud Control & Telemetry via Secure HiveMQ MQTT (Port 8883)
  * - NTP Time Synchronization & Time Scheduling
@@ -214,30 +214,32 @@ void loop() {
   }
 }
 
-// Function to calculate RMS current from CT Sensor with Strict Voltage Threshold
+// Function to calculate RMS current with DC Bias & Disconnected Pin Detection
 float readRMSCurrent(int pin) {
   long sum = 0;
+  long rawSum = 0;
   int samples = 100;
   int zeroOffset = 2048; // 1.65V center for CT sensors (3.3V / 2)
-  long minVal = 4095;
-  long maxVal = 0;
 
   for (int i = 0; i < samples; i++) {
     int raw = analogRead(pin);
-    if (raw < minVal) minVal = raw;
-    if (raw > maxVal) maxVal = raw;
-
+    rawSum += raw;
     int centered = raw - zeroOffset;
     sum += (long)centered * centered;
-    delayMicroseconds(200);
+    delayMicroseconds(100);
   }
 
-  long variance = maxVal - minVal;
+  // Check average DC level. A proper CT sensor with biasing circuit hovers around 2048.
+  // If nothing is connected (floating pin), rawAverage will be erratic or outside [500, 3500].
+  long rawAverage = rawSum / samples;
+  if (rawAverage < 500 || rawAverage > 3500) {
+    return 0.0; // Pin is floating or disconnected -> Return 0.0 A strictly
+  }
+
   float rmsRaw = sqrt((float)sum / samples);
   float voltage = (rmsRaw / 4095.0) * 3.3;
 
-  // Strict Threshold: If voltage is below 0.3V RMS or variance is too low, it's floating noise
-  if (voltage < 0.30 || variance < 50) {
+  if (voltage < 0.35) {
     return 0.0;
   }
 
