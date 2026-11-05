@@ -4,6 +4,7 @@
  * - Captive Portal (WiFiManager) for easy Wi-Fi setup
  * - 3-Phase Current Monitoring (CT Sensors) & Overload/Dry-Run Protection
  * - Schneider LC1-D1810 Contactor Control via Single-Channel Relay
+ * - MQTT Client for Cloud Telemetry & Remote Control (HiveMQ / MQTT Brokers)
  * - NTP Time Synchronization & Time Scheduling
  * - Web-Based OTA (Over-The-Air) Firmware Update
  * - CORS-enabled REST API for Vercel Web Dashboard
@@ -13,9 +14,12 @@
 #include <WebServer.h>
 #include <WiFiManager.h>
 #include <Update.h>
+#include <PubSubClient.h>
 #include "time.h"
 
 WebServer server(80);
+WiFiClient espClient;
+PubSubClient mqttClient(espClient);
 
 // Pin Definitions
 const int RELAY_PIN = 23;     // Connected to Single-Channel Relay IN
@@ -28,6 +32,12 @@ bool motorState = false;
 const float RATED_FLC = 9.0;     // Max allowable current before overload trip (Amps)
 const float DRY_RUN_LIMIT = 1.5; // Min current for pump dry-run detection (Amps)
 
+// --- MQTT Broker Settings ---
+const char* mqtt_server = "broker.hivemq.com"; // Public test broker (Change for production)
+const int mqtt_port = 1883;
+const char* mqtt_topic_telemetry = "smartstarter/motor1/telemetry";
+const char* mqtt_topic_control = "smartstarter/motor1/control";
+
 // NTP Time Servers & Settings (UTC+5:30 = 19800 sec)
 const long gmtOffset_sec = 19800;
 const int daylightOffset_sec = 0;
@@ -38,6 +48,47 @@ const int SCHEDULE_START_MIN = 30;
 const int SCHEDULE_STOP_HOUR = 18;   // 06:00 PM
 const int SCHEDULE_STOP_MIN = 0;
 bool scheduleEnabled = false;
+
+unsigned long lastMqttPublish = 0;
+const long mqttInterval = 5000; // Publish every 5 seconds
+
+void callback(char* topic, byte* payload, unsigned int length) {
+  String message = "";
+  for (int i = 0; i < length; i++) {
+    message += (char)payload[i];
+  }
+  Serial.print("MQTT Message arrived [");
+  Serial.print(topic);
+  Serial.print("] ");
+  Serial.println(message);
+
+  if (String(topic) == mqtt_topic_control) {
+    if (message == "ON") {
+      setMotorState(true);
+      Serial.println("Motor Started via MQTT");
+    } else if (message == "OFF") {
+      setMotorState(false);
+      Serial.println("Motor Stopped via MQTT");
+    }
+  }
+}
+
+void reconnectMqtt() {
+  while (!mqttClient.connected()) {
+    Serial.print("Attempting MQTT connection...");
+    String clientId = "SmartStarterClient-";
+    clientId += String(random(0xffff), HEX);
+    if (mqttClient.connect(clientId.c_str())) {
+      Serial.println("connected");
+      mqttClient.subscribe(mqtt_topic_control);
+    } else {
+      Serial.print("failed, rc=");
+      Serial.print(mqttClient.state());
+      Serial.println(" try again in 5 seconds");
+      delay(5000);
+    }
+  }
+}
 
 void setup() {
   Serial.begin(115200);
@@ -56,6 +107,10 @@ void setup() {
   Serial.println("\nWi-Fi Connected successfully!");
   Serial.print("ESP32 IP Address: ");
   Serial.println(WiFi.localIP());
+
+  // --- MQTT Setup ---
+  mqttClient.setServer(mqtt_server, mqtt_port);
+  mqttClient.setCallback(callback);
 
   // --- NTP Time Sync ---
   configTime(gmtOffset_sec, daylightOffset_sec, "pool.ntp.org", "time.nist.gov");
@@ -104,7 +159,29 @@ void setup() {
 }
 
 void loop() {
+  if (!mqttClient.connected()) {
+    reconnectMqtt();
+  }
+  mqttClient.loop();
   server.handleClient();
+
+  // --- Publish MQTT Telemetry Periodically ---
+  unsigned long now = millis();
+  if (now - lastMqttPublish > mqttInterval) {
+    lastMqttPublish = now;
+    float i1 = readRMSCurrent(CT1_PIN);
+    float i2 = readRMSCurrent(CT2_PIN);
+    float i3 = readRMSCurrent(CT3_PIN);
+
+    String payload = "{";
+    payload += "\"status\":\"" + String(motorState ? "ON" : "OFF") + "\",";
+    payload += "\"phase1\":" + String(i1, 2) + ",";
+    payload += "\"phase2\":" + String(i2, 2) + ",";
+    payload += "\"phase3\":" + String(i3, 2);
+    payload += "}";
+
+    mqttClient.publish(mqtt_topic_telemetry, payload.c_str());
+  }
 
   // --- Time Scheduling Check ---
   if (scheduleEnabled) {
@@ -134,9 +211,9 @@ void loop() {
     if (i1 > RATED_FLC || i2 > RATED_FLC || i3 > RATED_FLC) {
       Serial.println("TRIP: Overload detected! Shutting down motor.");
       tripMotor();
+      mqttClient.publish(mqtt_topic_telemetry, "{\"status\":\"TRIPPED_OVERLOAD\"}");
     }
   }
-  delay(1000);
 }
 
 // Function to calculate RMS current from CT Sensor
@@ -190,7 +267,7 @@ void handleGetData() {
   json += "\"status\":\"" + String(motorState ? "ON" : "OFF") + "\",";
   json += "\"phase1\":" + String(i1, 2) + ",";
   json += "\"phase2\":" + String(i2, 2) + ",";
-  json += "\"phase3\":" + String(i3, 2) + ",";
+  json += "\"phase3\":" + String(i3, 2);
   json += "\"time\":\"" + String(timeStr) + "\",";
   json += "\"scheduleEnabled\":" + String(scheduleEnabled ? "true" : "false");
   json += "}";
@@ -209,6 +286,7 @@ void handleControl() {
       setMotorState(false);
       Serial.println("Motor Stopped via Web Command");
     }
+    mqttClient.publish(mqtt_topic_telemetry, "{\"status\":\"" + String(motorState ? "ON" : "OFF") + "\"}");
     server.send(200, "application/json", "{\"result\":\"success\",\"state\":\"" + String(motorState ? "ON" : "OFF") + "\"}");
   } else if (server.hasArg("schedule")) {
     String sched = server.arg("schedule");
