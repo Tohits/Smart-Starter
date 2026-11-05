@@ -55,6 +55,8 @@ bool scheduleEnabled = false;
 unsigned long lastMqttPublish = 0;
 const long mqttInterval = 5000; // Publish telemetry every 5 seconds
 
+void publishTelemetry();
+
 void callback(char* topic, byte* payload, unsigned int length) {
   String message = "";
   for (int i = 0; i < length; i++) {
