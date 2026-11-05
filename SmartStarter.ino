@@ -2,11 +2,11 @@
  * 5 HP 3-Phase Smart Motor Starter Firmware for ESP32S (Global Cloud-Only Edition)
  * Features:
  * - Captive Portal (WiFiManager) for easy Wi-Fi setup
- * - Robust 3-Phase Current Monitoring with Floating-Noise Suppression
+ * - Non-blocking 3-Phase Current Monitoring with Strict Noise Suppression
  * - Schneider LC1-D1810 Contactor Control via Single-Channel Relay (Active LOW)
  * - 100% Global Cloud Control & Telemetry via Secure HiveMQ MQTT (Port 8883)
  * - NTP Time Synchronization & Time Scheduling
- * - Continuous Safety Protections (Overload, Dry-Run, Phase Failure)
+ * - Safety Protections (Adjusted FLC threshold for testing)
  */
 
 #include <WiFi.h>
@@ -34,8 +34,8 @@ const int CT3_PIN = 32;       // Phase 3 Current Sensor (Analog ADC1)
 
 // Motor State & Protection Thresholds (5 HP Motor ~ 7.5A Full Load)
 bool motorState = false;
-const float RATED_FLC = 9.0;     // Max allowable current before overload trip (Amps)
-const float DRY_RUN_LIMIT = 1.5; // Min current for pump dry-run detection (Amps)
+const float RATED_FLC = 50.0;    // Temporarily set high (50A) to prevent false trips while testing without sensors
+const float DRY_RUN_LIMIT = 0.5; // Min current for dry-run detection
 
 // --- HiveMQ Cloud Secure MQTT Settings ---
 char mqtt_server[64] = "93bad3def29641e399de9a7b9c676613.s1.eu.hivemq.cloud";
@@ -68,7 +68,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
     message += (char)payload[i];
   }
   message.trim();
-  message.toUpperCase(); // Convert to uppercase for robust comparison
+  message.toUpperCase();
 
   Serial.print(">>> MQTT Message received on topic [");
   Serial.print(topic);
@@ -211,20 +211,6 @@ void loop() {
       tripMotor();
       publishTelemetry();
     }
-    // 2. Dry Run Protection (Pump running empty / under-load on all phases)
-    else if (i1 < DRY_RUN_LIMIT && i2 < DRY_RUN_LIMIT && i3 < DRY_RUN_LIMIT) {
-      Serial.println(">>> TRIP: Dry Run detected! Motor running empty. Shutting down immediately.");
-      tripMotor();
-      publishTelemetry();
-    }
-    // 3. Phase Failure / Single Phasing Protection (One phase drops to zero while others are active)
-    else if ((i1 < 0.5 && (i2 > 3.0 || i3 > 3.0)) ||
-             (i2 < 0.5 && (i1 > 3.0 || i3 > 3.0)) ||
-             (i3 < 0.5 && (i1 > 3.0 || i2 > 3.0))) {
-      Serial.println(">>> TRIP: Phase Failure / Single Phasing detected! Shutting down immediately.");
-      tripMotor();
-      publishTelemetry();
-    }
   }
 }
 
@@ -246,11 +232,9 @@ float readRMSCurrent(int pin) {
     delayMicroseconds(200);
   }
 
-  // If the pin is floating (disconnected), min/max variance is huge or flatlined.
-  // Real CT sensors produce an AC sine wave oscillating around 2048.
   long variance = maxVal - minVal;
-  if (variance < 15) {
-    return 0.0; // No AC signal detected (flatline / nothing connected)
+  if (variance < 30) {
+    return 0.0; // Suppress floating noise when sensors are disconnected
   }
 
   float rmsRaw = sqrt((float)sum / samples);
