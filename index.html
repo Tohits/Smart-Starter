@@ -50,11 +50,14 @@
             <p id="lastSync" class="text-slate-400 text-xs mt-2">Last Sync: Never</p>
         </div>
 
-        <!-- ESP32 Hardware Status Bar -->
+        <!-- ESP32 Hardware Status Bar with Reboot Button -->
         <div class="bg-slate-800 border border-slate-700 p-4 rounded-xl shadow flex flex-wrap items-center justify-between gap-4 text-sm">
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2 flex-wrap">
                 <span class="text-slate-400">ESP32 Hardware:</span>
                 <span id="espHealthBadge" class="px-2 py-0.5 rounded-md text-xs font-bold bg-amber-500/20 text-amber-400">Offline</span>
+                <button onclick="rebootEsp()" class="ml-2 bg-rose-600/20 hover:bg-rose-600/30 text-rose-400 border border-rose-500/30 px-2.5 py-1 rounded-md text-xs font-semibold transition flex items-center gap-1">
+                    🔄 Reboot ESP
+                </button>
             </div>
             <div class="flex items-center gap-4 text-xs text-slate-300">
                 <div>📶 Wi-Fi RSSI: <span id="wifiRssi" class="font-bold text-white">-- dBm</span></div>
@@ -213,6 +216,10 @@
                     if (data.status === 'ON') {
                         statusCard.className = "p-6 rounded-2xl border border-emerald-500 bg-emerald-950/40 shadow-lg text-center transition-all duration-200";
                         statusText.className = "text-3xl font-extrabold tracking-wide text-emerald-400";
+                    } else if (data.status === 'REBOOTING') {
+                        statusCard.className = "p-6 rounded-2xl border border-amber-500 bg-amber-950/40 shadow-lg text-center transition-all duration-200";
+                        statusText.className = "text-3xl font-extrabold tracking-wide text-amber-400";
+                        statusText.innerText = "REBOOTING ESP32...";
                     } else {
                         statusCard.className = "p-6 rounded-2xl border border-rose-500 bg-rose-950/40 shadow-lg text-center transition-all duration-200";
                         statusText.className = "text-3xl font-extrabold tracking-wide text-rose-400";
@@ -265,6 +272,18 @@
                     console.log(`Command ${state} published successfully`);
                 }
             });
+        }
+
+        function rebootEsp() {
+            if (confirm("Are you sure you want to reboot the ESP32 motor starter?")) {
+                client.publish('smartstarter/motor1/control', 'REBOOT', { qos: 1 }, (err) => {
+                    if (err) {
+                        alert("Failed to send reboot command: " + err.message);
+                    } else {
+                        console.log('Reboot command published successfully');
+                    }
+                });
+            }
         }
     </script>
 </body>

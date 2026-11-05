@@ -2,10 +2,11 @@
  * 5 HP 3-Phase Smart Motor Starter Firmware for ESP32S (Global Cloud-Only Edition)
  * Features:
  * - Captive Portal (WiFiManager) for easy Wi-Fi setup
- * - Bulletproof 3-Phase Current Monitoring with Dynamic DC Baseline & Zero-Clamping
+ * - Non-blocking 3-Phase Current Monitoring with DC Baseline & Zero-Clamping
  * - Schneider LC1-D1810 Contactor Control via Single-Channel Relay on Pin P5 (GPIO 5)
- * - 100% Global Cloud Control & Telemetry via Secure HiveMQ MQTT (Port 8883)
+ * - 100% Global Cloud Control, Telemetry & Remote Reboot via Secure HiveMQ MQTT (Port 8883)
  * - NTP Time Synchronization & Time Scheduling
+ * - Hardware Watchdog Timer (WDT) for Fail-Proof Auto-Recovery
  * - Continuous Safety Protections (Overload, Dry-Run, Phase Failure)
  */
 
@@ -15,6 +16,7 @@
 #include <WebServer.h>
 #include <WiFiClientSecure.h>
 #include <PubSubClient.h>
+#include <esp_task_wdt.h>
 #include "time.h"
 
 WebServer server(80);
@@ -83,6 +85,11 @@ void callback(char* topic, byte* payload, unsigned int length) {
     } else if (message == "OFF" || message == "STOP" || message == "0") {
       Serial.println(">>> Command matched: Turning MOTOR OFF");
       setMotorState(false);
+    } else if (message == "REBOOT" || message == "RESTART") {
+      Serial.println(">>> Command matched: REBOOTING ESP32...");
+      mqttClient.publish(mqtt_topic_telemetry, "{\"status\":\"REBOOTING\"}");
+      delay(500);
+      ESP.restart();
     } else {
       Serial.print(">>> Unknown command payload: ");
       Serial.println(message);
@@ -93,6 +100,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
 
 void reconnectMqtt() {
   while (!mqttClient.connected()) {
+    esp_task_wdt_reset(); // Feed WDT during reconnection attempts
     Serial.print("Connecting to HiveMQ Cloud Secure MQTT...");
     String clientId = "SmartStarterGlobal-";
     clientId += String(random(0xffff), HEX);
@@ -114,6 +122,10 @@ void setup() {
   Serial.begin(115200);
   delay(1000);
   Serial.println("\n\n--- Smart Starter ESP32 Booting ---");
+
+  // --- Hardware Watchdog Timer (WDT) Setup (30 seconds timeout) ---
+  esp_task_wdt_init(30, true);
+  esp_task_wdt_add(NULL);
 
   pinMode(RELAY_PIN, OUTPUT);
   digitalWrite(RELAY_PIN, RELAY_OFF); // Ensure relay is OFF initially
@@ -166,6 +178,8 @@ void setup() {
 }
 
 void loop() {
+  esp_task_wdt_reset(); // Feed the watchdog timer every loop iteration
+
   if (!mqttClient.connected()) {
     reconnectMqtt();
   }
@@ -226,12 +240,10 @@ float readRMSCurrent(int pin) {
 
   long rawAverage = rawSum / samples;
 
-  // If grounded (rawAverage < 800) or floating/disconnected (rawAverage > 3200), return 0.0 A strictly
   if (rawAverage < 800 || rawAverage > 3200) {
     return 0.0;
   }
 
-  // Calculate AC RMS centered around the actual measured DC baseline (rawAverage)
   long sum = 0;
   for (int i = 0; i < samples; i++) {
     int raw = analogRead(pin);
