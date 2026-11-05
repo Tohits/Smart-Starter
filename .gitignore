@@ -1,0 +1,7 @@
+/ .idea/
+/.artifacts/
+/local.properties
+/.vscode/
+.DS_Store
+build/
+.pio/
