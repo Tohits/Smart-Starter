@@ -18,7 +18,7 @@
     <!-- Header -->
     <header class="bg-slate-800 border-b border-slate-700 py-4 px-6 shadow-md">
         <div class="max-w-4xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
-            <div class="flex items-center gap-3">
+            <div class="flex items-center gap-3 flex-wrap">
                 <h1 class="text-2xl font-bold flex items-center gap-2">
                     ⚙️ 5 HP Smart Motor Starter
                 </h1>
@@ -28,28 +28,20 @@
                     <span id="connText">Connecting to Cloud...</span>
                 </span>
             </div>
-            <div class="flex items-center gap-2 text-xs text-emerald-400 bg-emerald-950/40 px-3 py-1.5 rounded-lg border border-emerald-500/30">
-                <span>☁️ HiveMQ Cloud Global Link</span>
+            <div class="flex items-center gap-3">
+                <!-- Compact Install App Button (Hidden by default) -->
+                <button id="installBtn" class="hidden bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition flex items-center gap-1.5 shadow">
+                    <span>📱</span> Install App
+                </button>
+                <div class="flex items-center gap-2 text-xs text-emerald-400 bg-emerald-950/40 px-3 py-1.5 rounded-lg border border-emerald-500/30">
+                    <span>☁️ HiveMQ Cloud</span>
+                </div>
             </div>
         </div>
     </header>
 
     <!-- Main Content -->
     <main class="max-w-4xl mx-auto p-6 w-full flex-grow flex flex-col gap-6 justify-center">
-
-        <!-- Install PWA Banner (Hidden by default) -->
-        <div id="installBanner" class="hidden bg-gradient-to-r from-blue-600 to-indigo-600 p-4 rounded-2xl shadow-lg flex items-center justify-between gap-4 border border-blue-400/30">
-            <div class="flex items-center gap-3">
-                <span class="text-3xl">📱</span>
-                <div>
-                    <h4 class="font-bold text-white text-base">Install Smart Starter App</h4>
-                    <p class="text-blue-100 text-xs">Add to your phone home screen for quick access and native app experience.</p>
-                </div>
-            </div>
-            <button id="installBtn" class="bg-white text-blue-700 font-bold px-4 py-2 rounded-xl text-sm shadow hover:bg-blue-50 transition whitespace-nowrap">
-                Install App
-            </button>
-        </div>
 
         <!-- Status Card -->
         <div id="statusCard" class="p-6 rounded-2xl border border-slate-700 bg-slate-800 shadow-lg text-center transition-all duration-200">
@@ -113,13 +105,12 @@
     <script>
         let deferredPrompt;
         let lastMessageTime = 0;
-        const installBanner = document.getElementById('installBanner');
         const installBtn = document.getElementById('installBtn');
 
         window.addEventListener('beforeinstallprompt', (e) => {
             e.preventDefault();
             deferredPrompt = e;
-            installBanner.classList.remove('hidden');
+            installBtn.classList.remove('hidden');
         });
 
         installBtn.addEventListener('click', async () => {
@@ -127,12 +118,12 @@
                 deferredPrompt.prompt();
                 const { outcome } = await deferredPrompt.userChoice;
                 deferredPrompt = null;
-                installBanner.classList.add('hidden');
+                installBtn.classList.add('hidden');
             }
         });
 
         window.addEventListener('appinstalled', () => {
-            installBanner.classList.add('hidden');
+            installBtn.classList.add('hidden');
         });
 
         if ('serviceWorker' in navigator) {
