@@ -2,7 +2,10 @@
  * 5 HP 3-Phase Smart Motor Starter Firmware for ESP32S (Global Cloud-Only Edition)
  * Features:
  * - Captive Portal (WiFiManager) for easy Wi-Fi setup
- * - 3-Phase Current Monitoring (CT Sensors) & Overload Protection
+ * - 3-Phase Current Monitoring (CT Sensors) & Advanced Protection:
+ *   1. Overload Protection (Trips if any phase exceeds FLC)
+ *   2. Dry Run Protection (Trips if motor runs empty/under-load)
+ *   3. Phase Failure / Single Phasing Protection (Trips if one phase drops out)
  * - Schneider LC1-D1810 Contactor Control via Single-Channel Relay
  * - 100% Global Cloud Control & Telemetry via Secure HiveMQ MQTT (Port 8883)
  * - NTP Time Synchronization & Time Scheduling
@@ -25,11 +28,7 @@ PubSubClient mqttClient(espClient);
 const int RELAY_PIN = 23;     // Connected to Single-Channel Relay IN
 
 // --- RELAY LOGIC CONFIGURATION ---
-// Most common single-channel 5V/3.3V relay modules are ACTIVE LOW:
-// - LOW turns the relay ON (energizes coil)
-// - HIGH turns the relay OFF (de-energizes coil)
-// If your relay is Active High, swap RELAY_ON to HIGH and RELAY_OFF to LOW.
-const int RELAY_ON = LOW;
+const int RELAY_ON = LOW;     // Active LOW relay module
 const int RELAY_OFF = HIGH;
 
 const int CT1_PIN = 34;       // Phase 1 Current Sensor (Analog ADC1)
@@ -62,7 +61,7 @@ const int SCHEDULE_STOP_MIN = 0;
 bool scheduleEnabled = false;
 
 unsigned long lastMqttPublish = 0;
-const long mqttInterval = 5000; // Publish telemetry every 5 seconds
+const long mqttInterval = 3000; // Publish telemetry every 3 seconds
 
 void publishTelemetry();
 
@@ -200,15 +199,29 @@ void loop() {
     }
   }
 
-  // --- Continuous Protection Check if Motor is Running ---
+  // --- CONTINUOUS 3-PHASE SAFETY & PROTECTION MONITORING ---
   if (motorState) {
     float i1 = readRMSCurrent(CT1_PIN);
     float i2 = readRMSCurrent(CT2_PIN);
     float i3 = readRMSCurrent(CT3_PIN);
 
-    // Overload Protection Trip
+    // 1. Overload Protection (Any phase exceeds FLC)
     if (i1 > RATED_FLC || i2 > RATED_FLC || i3 > RATED_FLC) {
-      Serial.println("TRIP: Overload detected! Shutting down motor.");
+      Serial.println(">>> TRIP: Overload detected on phase(s)! Shutting down motor immediately.");
+      tripMotor();
+      publishTelemetry();
+    }
+    // 2. Dry Run Protection (Pump running empty / under-load on all phases)
+    else if (i1 < DRY_RUN_LIMIT && i2 < DRY_RUN_LIMIT && i3 < DRY_RUN_LIMIT) {
+      Serial.println(">>> TRIP: Dry Run detected! Motor running empty. Shutting down immediately.");
+      tripMotor();
+      publishTelemetry();
+    }
+    // 3. Phase Failure / Single Phasing Protection (One phase drops to zero while others are active)
+    else if ((i1 < 0.5 && (i2 > 3.0 || i3 > 3.0)) ||
+             (i2 < 0.5 && (i1 > 3.0 || i3 > 3.0)) ||
+             (i3 < 0.5 && (i1 > 3.0 || i2 > 3.0))) {
+      Serial.println(">>> TRIP: Phase Failure / Single Phasing detected! Shutting down immediately.");
       tripMotor();
       publishTelemetry();
     }
@@ -232,13 +245,13 @@ float readRMSCurrent(int pin) {
 void tripMotor() {
   motorState = false;
   digitalWrite(RELAY_PIN, RELAY_OFF);
-  Serial.println("Relay turned OFF (Trip)");
+  Serial.println(">>> Motor Tripped: Relay turned OFF");
 }
 
 void setMotorState(bool state) {
   motorState = state;
   digitalWrite(RELAY_PIN, state ? RELAY_ON : RELAY_OFF);
-  Serial.print("Relay GPIO 23 set to: ");
+  Serial.print(">>> Relay GPIO 23 set to: ");
   Serial.println(state ? "RELAY_ON (LOW)" : "RELAY_OFF (HIGH)");
 }
 
