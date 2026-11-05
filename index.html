@@ -3,13 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>5 HP Smart Motor Starter Dashboard</title>
+    <title>5 HP Smart Motor Starter Dashboard (Global Cloud)</title>
     <!-- PWA Manifest & Theme -->
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#1e293b">
     <link rel="icon" href="/icon.svg" type="image/svg+xml">
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- MQTT.js for Global Cloud WebSockets -->
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col justify-between">
 
@@ -23,16 +25,11 @@
                 <!-- Connection State Badge -->
                 <span id="connBadge" class="px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center gap-1.5">
                     <span id="connDot" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
-                    <span id="connText">Connecting...</span>
+                    <span id="connText">Connecting to Cloud...</span>
                 </span>
             </div>
-            <div class="flex items-center gap-2 w-full sm:w-auto">
-                <input type="text" id="espIp" value="192.168.1.100"
-                    class="bg-slate-700 border border-slate-600 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full sm:w-48"
-                    placeholder="ESP32 IP / URL" aria-label="ESP32 IP Address">
-                <button onclick="testConnection()" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition">
-                    Connect
-                </button>
+            <div class="flex items-center gap-2 text-xs text-emerald-400 bg-emerald-950/40 px-3 py-1.5 rounded-lg border border-emerald-500/30">
+                <span>☁️ HiveMQ Cloud Global Link</span>
             </div>
         </div>
     </header>
@@ -58,7 +55,7 @@
         <div id="statusCard" class="p-6 rounded-2xl border border-slate-700 bg-slate-800 shadow-lg text-center transition-all duration-200">
             <p class="text-slate-400 text-sm uppercase tracking-wider mb-1">Motor Status</p>
             <h2 id="statusText" class="text-3xl font-extrabold tracking-wide">CONNECTING...</h2>
-            <p id="errorText" class="text-rose-400 text-xs mt-2 hidden"></p>
+            <p id="lastSync" class="text-slate-400 text-xs mt-2">Last Sync: Never</p>
         </div>
 
         <!-- 3-Phase Current Monitoring -->
@@ -97,10 +94,10 @@
 
     <!-- Footer -->
     <footer class="bg-slate-800 border-t border-slate-700 py-3 px-6 text-center text-xs text-slate-500">
-        Smart Starter IoT PWA Dashboard &bull; Hosted on Vercel
+        Smart Starter Global Cloud Dashboard &bull; Powered by HiveMQ Cloud & Vercel
     </footer>
 
-    <!-- Optimized High-Performance JavaScript -->
+    <!-- Global Cloud MQTT WebSockets Client -->
     <script>
         let deferredPrompt;
         const installBanner = document.getElementById('installBanner');
@@ -131,14 +128,6 @@
             });
         }
 
-        function getBaseUrl() {
-            let ip = document.getElementById('espIp').value.trim();
-            if (!ip.startsWith('http://') && !ip.startsWith('https://')) {
-                ip = 'http://' + ip;
-            }
-            return ip;
-        }
-
         function setConnectionState(state, message) {
             const badge = document.getElementById('connBadge');
             const dot = document.getElementById('connDot');
@@ -159,86 +148,93 @@
             }
         }
 
-        async function fetchData() {
-            const baseUrl = getBaseUrl();
-            const statusCard = document.getElementById('statusCard');
-            const statusText = document.getElementById('statusText');
-            const errorText = document.getElementById('errorText');
+        // --- HiveMQ Cloud WebSocket Connection ---
+        const mqttHost = '93bad3def29641e399de9a7b9c676613.s1.eu.hivemq.cloud';
+        const mqttPort = 8884; // WebSocket Secure port for HiveMQ Cloud
+        const mqttUser = 'tohits';
+        const mqttPass = 'toh123@TOH';
 
-            // Fast fetch with 1.5s AbortController timeout
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 1500);
+        const clientId = 'web_dashboard_' + Math.random().toString(16).substring(2, 8);
+        const connectUrl = `wss://${mqttHost}:${mqttPort}/mqtt`;
 
-            try {
-                const response = await fetch(`${baseUrl}/data`, {
-                    mode: 'cors',
-                    signal: controller.signal
-                });
-                clearTimeout(timeoutId);
+        setConnectionState('connecting', 'Connecting to Cloud...');
 
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const client = mqtt.connect(connectUrl, {
+            clientId: clientId,
+            username: mqttUser,
+            password: mqttPass,
+            clean: true,
+            connectTimeout: 5000,
+            reconnectPeriod: 2000,
+        });
 
-                const data = await response.json();
+        client.on('connect', () => {
+            console.log('Connected to HiveMQ Cloud via WebSockets');
+            setConnectionState('connected', 'Cloud Connected');
+            client.subscribe('smartstarter/motor1/telemetry', (err) => {
+                if (err) console.error('Subscription error:', err);
+            });
+        });
 
-                // Update Status immediately
-                statusText.innerText = data.status;
-                if (data.status === 'ON') {
-                    statusCard.className = "p-6 rounded-2xl border border-emerald-500 bg-emerald-950/40 shadow-lg text-center transition-all duration-200";
-                    statusText.className = "text-3xl font-extrabold tracking-wide text-emerald-400";
-                } else {
-                    statusCard.className = "p-6 rounded-2xl border border-rose-500 bg-rose-950/40 shadow-lg text-center transition-all duration-200";
-                    statusText.className = "text-3xl font-extrabold tracking-wide text-rose-400";
+        client.on('reconnect', () => {
+            setConnectionState('connecting', 'Reconnecting...');
+        });
+
+        client.on('offline', () => {
+            setConnectionState('disconnected', 'Cloud Offline');
+        });
+
+        client.on('error', (err) => {
+            console.error('MQTT error:', err);
+            setConnectionState('disconnected', 'Connection Error');
+        });
+
+        client.on('message', (topic, payload) => {
+            if (topic === 'smartstarter/motor1/telemetry') {
+                try {
+                    const data = JSON.parse(payload.toString());
+                    const statusCard = document.getElementById('statusCard');
+                    const statusText = document.getElementById('statusText');
+
+                    // Update Status
+                    statusText.innerText = data.status;
+                    if (data.status === 'ON') {
+                        statusCard.className = "p-6 rounded-2xl border border-emerald-500 bg-emerald-950/40 shadow-lg text-center transition-all duration-200";
+                        statusText.className = "text-3xl font-extrabold tracking-wide text-emerald-400";
+                    } else {
+                        statusCard.className = "p-6 rounded-2xl border border-rose-500 bg-rose-950/40 shadow-lg text-center transition-all duration-200";
+                        statusText.className = "text-3xl font-extrabold tracking-wide text-rose-400";
+                    }
+
+                    // Update Amps
+                    document.getElementById('phase1Val').innerHTML = `${data.phase1 || 0.0} <span class="text-lg font-normal text-slate-400">A</span>`;
+                    document.getElementById('phase2Val').innerHTML = `${data.phase2 || 0.0} <span class="text-lg font-normal text-slate-400">A</span>`;
+                    document.getElementById('phase3Val').innerHTML = `${data.phase3 || 0.0} <span class="text-lg font-normal text-slate-400">A</span>`;
+
+                    if (data.time) {
+                        document.getElementById('lastSync').innerText = `Last Sync: ${data.time}`;
+                    }
+
+                    setConnectionState('connected', 'Live & Connected');
+                } catch (e) {
+                    console.error('Failed to parse telemetry JSON:', e);
                 }
-
-                // Update Amps
-                document.getElementById('phase1Val').innerHTML = `${data.phase1} <span class="text-lg font-normal text-slate-400">A</span>`;
-                document.getElementById('phase2Val').innerHTML = `${data.phase2} <span class="text-lg font-normal text-slate-400">A</span>`;
-                document.getElementById('phase3Val').innerHTML = `${data.phase3} <span class="text-lg font-normal text-slate-400">A</span>`;
-
-                setConnectionState('connected', 'Live & Connected');
-                errorText.classList.add('hidden');
-            } catch (err) {
-                clearTimeout(timeoutId);
-                statusText.innerText = "OFFLINE";
-                statusCard.className = "p-6 rounded-2xl border border-amber-500 bg-amber-950/40 shadow-lg text-center transition-all duration-200";
-                statusText.className = "text-3xl font-extrabold tracking-wide text-amber-400";
-
-                setConnectionState('disconnected', 'Device Offline');
-                errorText.innerText = "Connection timeout or offline.";
-                errorText.classList.remove('hidden');
             }
-        }
+        });
 
-        async function sendControl(state) {
-            const baseUrl = getBaseUrl();
-
-            // Optimistic UI update for instant feedback
+        function sendControl(state) {
             const statusText = document.getElementById('statusText');
             statusText.innerText = state + " (Sending...)";
 
-            try {
-                const response = await fetch(`${baseUrl}/control?state=${state}`, {
-                    method: 'POST',
-                    mode: 'cors'
-                });
-                if (response.ok) {
-                    const data = await response.json();
-                    statusText.innerText = data.state;
-                    fetchData();
+            client.publish('smartstarter/motor1/control', state, { qos: 1 }, (err) => {
+                if (err) {
+                    alert("Failed to send command: " + err.message);
+                    statusText.innerText = "ERROR";
+                } else {
+                    console.log(`Command ${state} published successfully`);
                 }
-            } catch (err) {
-                statusText.innerText = "ERROR";
-                alert("Failed to send command to ESP32: " + err.message);
-            }
+            });
         }
-
-        function testConnection() {
-            fetchData();
-        }
-
-        // High-performance polling interval (1.5 seconds)
-        setInterval(fetchData, 1500);
-        window.onload = fetchData;
     </script>
 </body>
 </html>
