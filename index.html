@@ -440,10 +440,8 @@
                         triggerMobileNotification("🚨 Smart Starter Fault Alert!", `Motor shut down due to: ${data.status}`);
                     }
 
-                    // Update Status
-                    if (!statusText.innerText.includes('Sending')) {
-                        statusText.innerText = data.status;
-                    }
+                    // Update Status directly on confirmed telemetry update
+                    statusText.innerText = data.status;
                     updateStatusCardStyle(data.status);
 
                     // Update Amps
