@@ -200,12 +200,13 @@
         Smart Starter Global Cloud Dashboard &bull; Powered by HiveMQ Cloud & Vercel
     </footer>
 
-    <!-- Global Cloud MQTT WebSockets Client & Smart Motor Health Dashboard -->
+    <!-- Global Cloud MQTT WebSockets Client & Mobile Notifications -->
     <script>
         let currentAutoStart = false;
         let currentDryRun = true;
         let lastReceivedStatus = 'OFF';
         let lastNotifiedStatus = '';
+        let commandTimeoutId = null;
 
         // --- Smart Motor Health Diagnostic Calculator ---
         function evaluateMotorHealth(i1, i2, i3, tempC, status) {
@@ -215,7 +216,6 @@
             let overloadRiskText = "Low (0%)";
             let insight = "System Optimal & Healthy";
 
-            // Thermal Stress
             if (tempC > 65) {
                 score -= 30;
                 thermalText = `HIGH (${tempC}°C)`;
@@ -225,7 +225,6 @@
                 thermalText = `Warm (${tempC}°C)`;
             }
 
-            // Phase Current Imbalance Check
             const maxI = Math.max(i1, i2, i3);
             const minI = Math.min(i1, i2, i3);
             const avgI = (i1 + i2 + i3) / 3;
@@ -243,7 +242,6 @@
                     insight = "Moderate phase imbalance.";
                 }
 
-                // Overload Risk Calculation (5 HP ~ 8.5A FLC)
                 const ratedFLC = 8.5;
                 const riskPct = Math.min(100, Math.round((maxI / ratedFLC) * 100));
                 overloadRiskText = `${riskPct}% FLC`;
@@ -263,7 +261,6 @@
 
             score = Math.max(0, Math.min(100, score));
 
-            // UI Elements
             const badge = document.getElementById('healthScoreBadge');
             const balanceEl = document.getElementById('phaseBalanceVal');
             const thermalEl = document.getElementById('thermalStressVal');
@@ -595,7 +592,11 @@
                         }
                     }
 
-                    // Update Status directly on confirmed telemetry update
+                    // Clear any pending command timeout and update confirmed status directly
+                    if (commandTimeoutId) {
+                        clearTimeout(commandTimeoutId);
+                        commandTimeoutId = null;
+                    }
                     statusText.innerText = data.status;
                     updateStatusCardStyle(data.status);
 
@@ -699,6 +700,16 @@
         function sendControl(state) {
             const statusText = document.getElementById('statusText');
             statusText.innerText = state + " (Sending...)";
+
+            if (commandTimeoutId) clearTimeout(commandTimeoutId);
+
+            // Safety Guardrail: 3.5s timeout clears (Sending...) automatically
+            commandTimeoutId = setTimeout(() => {
+                if (statusText.innerText.includes('Sending')) {
+                    statusText.innerText = lastReceivedStatus;
+                    updateStatusCardStyle(lastReceivedStatus);
+                }
+            }, 3500);
 
             client.publish('smartstarter/motor1/control', state, { qos: 1 }, (err) => {
                 if (err) {
