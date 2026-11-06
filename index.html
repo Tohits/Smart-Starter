@@ -64,7 +64,6 @@
                 <div id="wifiSsidContainer" class="hidden font-semibold text-emerald-400 bg-emerald-950/40 px-2.5 py-1 rounded-md border border-emerald-500/30 flex items-center gap-1">
                     📶 Wi-Fi: <span id="wifiSsid" class="text-white font-bold">--</span>
                 </div>
-                <div>📶 Signal: <span id="wifiRssi" class="font-bold text-white">-- dBm</span></div>
                 <div>⏱️ Uptime: <span id="espUptime" class="font-bold text-white">--</span></div>
             </div>
         </div>
@@ -247,9 +246,6 @@
                     }
 
                     // ESP32 Hardware Telemetry
-                    if (data.rssi !== undefined) {
-                        document.getElementById('wifiRssi').innerText = `${data.rssi} dBm`;
-                    }
                     if (data.uptime !== undefined) {
                         document.getElementById('espUptime').innerText = formatUptime(data.uptime);
                     }
