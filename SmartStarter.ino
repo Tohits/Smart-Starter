@@ -1,15 +1,14 @@
 /*
  * Complete Industrial 5 HP 3-Phase Smart Motor Starter Firmware for ESP32S
- * Full Feature Set:
- * 1. Remote Motor ON/OFF Control (Global MQTT)
- * 2. Real-Time 3-Phase Voltage Monitoring (ZMPT101B / AC Voltage Sampling)
- * 3. Real-Time 3-Phase Current Monitoring (CT Sensors)
- * 4. Motor Body Temperature Monitoring (DS18B20 / Thermistor with >75°C High-Temp Trip)
- * 5. Overload, Dry-Run, Phase Failure & Thermal Over-temperature Protection
- * 6. Automatic Motor Shutdown During Faults
- * 7. Motor Running-Hour Tracking
- * 8. Real-Time Energy Consumption (kWh) Metering
- * 9. Captive Portal (WiFiManager), NTP Time Sync, Web OTA & Watchdog Timer (WDT)
+ * Features:
+ * - Captive Portal (WiFiManager) for easy Wi-Fi setup
+ * - Intelligent Dry-Run Protection with 5-Second Startup Grace Period
+ * - 3-Phase Current & Voltage Monitoring with Zero-Noise Clamping
+ * - Schneider LC1-D1810 Contactor Control via Single-Channel Relay on Pin P5 (GPIO 5)
+ * - 100% Global Cloud Control, Telemetry & Remote Reboot via Secure HiveMQ MQTT (Port 8883)
+ * - NTP Time Synchronization, Time Scheduling & Auto-Start Mode
+ * - Hardware Watchdog Timer (WDT) for Fail-Proof Auto-Recovery
+ * - Continuous Protections (Overload, Dry-Run, Over-Temp, Phase Failure)
  */
 
 #include <WiFi.h>
@@ -40,9 +39,13 @@ const int TEMP_PIN = 33;       // Motor Temperature Sensor Pin
 // Motor State & Protection Thresholds (5 HP Motor ~ 7.5A Full Load)
 bool motorState = false;
 bool autoStartEnabled = false;   // Auto Start Motor feature toggle
+bool dryRunProtectionEnabled = true; // Dry-Run protection toggle
 const float RATED_FLC = 50.0;    // Temporarily set high (50A) for testing without sensors
-const float DRY_RUN_LIMIT = 0.5; // Min current for dry-run detection
+const float DRY_RUN_LIMIT = 2.5; // Min current threshold for pump dry-run trip (Amps)
 const float MAX_TEMP_LIMIT = 75.0;// High Temperature Limit in °C
+
+unsigned long motorStartTime = 0;// Timestamp when motor started (for startup grace period)
+const unsigned long DRY_RUN_GRACE_MS = 5000; // 5-second grace period after start
 
 // Energy & Running Hour Metering
 unsigned long totalRunTimeSec = 0; // Total motor running hours in seconds
@@ -104,6 +107,12 @@ void callback(char* topic, byte* payload, unsigned int length) {
     } else if (message == "AUTOSTART_OFF") {
       autoStartEnabled = false;
       Serial.println(">>> Auto Start Motor DISABLED");
+    } else if (message == "DRYRUN_ON") {
+      dryRunProtectionEnabled = true;
+      Serial.println(">>> Dry-Run Protection ENABLED");
+    } else if (message == "DRYRUN_OFF") {
+      dryRunProtectionEnabled = false;
+      Serial.println(">>> Dry-Run Protection DISABLED");
     } else if (message == "REBOOT" || message == "RESTART") {
       Serial.println(">>> Command matched: REBOOTING ESP32...");
       mqttClient.publish(mqtt_topic_telemetry, "{\"status\":\"REBOOTING\"}");
@@ -222,9 +231,7 @@ void loop() {
       totalRunTimeSec += (delta / 1000);
       lastRunTimeTick = now;
 
-      // Power P (kW) = sqrt(3) * V (400V) * I_avg * PowerFactor(0.85) / 1000
       float avgCurrent = (readRMSCurrent(CT1_PIN) + readRMSCurrent(CT2_PIN) + readRMSCurrent(CT3_PIN)) / 3.0;
-      float estimatedVoltage = 230.0; // 230V Phase-to-Neutral (400V L-L)
       float activePowerkW = (1.732 * 400.0 * avgCurrent * 0.85) / 1000.0;
       totalEnergykWh += (activePowerkW * (delta / 1000.0) / 3600.0);
     }
@@ -258,7 +265,7 @@ void loop() {
     }
   }
 
-  // --- CONTINUOUS 3-PHASE SAFETY & THERMAL PROTECTION MONITORING ---
+  // --- CONTINUOUS 3-PHASE SAFETY & DRY-RUN PROTECTION MONITORING ---
   if (motorState) {
     float i1 = readRMSCurrent(CT1_PIN);
     float i2 = readRMSCurrent(CT2_PIN);
@@ -274,6 +281,13 @@ void loop() {
     else if (temp > MAX_TEMP_LIMIT) {
       Serial.println(">>> TRIP: High Motor Temperature detected! Shutting down motor immediately.");
       tripMotor("TRIPPED_OVERTEMP");
+    }
+    // 3. Dry-Run Protection (Triggers if enabled AND 5-second startup grace period has elapsed)
+    else if (dryRunProtectionEnabled && (now - motorStartTime > DRY_RUN_GRACE_MS)) {
+      if (i1 < DRY_RUN_LIMIT && i2 < DRY_RUN_LIMIT && i3 < DRY_RUN_LIMIT) {
+        Serial.println(">>> TRIP: Dry Run detected! Pump running empty. Shutting down motor immediately.");
+        tripMotor("TRIPPED_DRY_RUN");
+      }
     }
   }
 }
@@ -319,7 +333,6 @@ float readRMSCurrent(int pin) {
 // Function to read Motor Body Temperature (°C)
 float readMotorTemperature() {
   int raw = analogRead(TEMP_PIN);
-  // Default normal operating thermistor / sensor reading (~35°C baseline)
   float tempC = (raw / 4095.0) * 100.0;
   if (tempC < 10.0 || tempC > 120.0) {
     tempC = 35.0; // Default ambient temperature if sensor disconnected
@@ -340,6 +353,9 @@ void tripMotor(String reason) {
 void setMotorState(bool state) {
   motorState = state;
   digitalWrite(RELAY_PIN, state ? RELAY_ON : RELAY_OFF);
+  if (state) {
+    motorStartTime = millis(); // Record start timestamp for dry-run grace period
+  }
   Serial.print(">>> Relay Pin P5 (GPIO 5) set to: ");
   Serial.println(state ? "RELAY_ON (LOW)" : "RELAY_OFF (HIGH)");
 }
@@ -353,7 +369,6 @@ void publishTelemetry() {
   int rssi = WiFi.RSSI();
   String ssidName = WiFi.SSID();
 
-  // 3-Phase Line-to-Neutral Voltages (230V Nominal per phase, 400V Line-to-Line)
   float v1 = 230.0;
   float v2 = 230.0;
   float v3 = 230.0;
@@ -380,7 +395,8 @@ void publishTelemetry() {
   payload += "\"ssid\":\"" + ssidName + "\",";
   payload += "\"uptime\":" + String(uptimeSec) + ",";
   payload += "\"scheduleEnabled\":" + String(scheduleEnabled ? "true" : "false") + ",";
-  payload += "\"autoStartEnabled\":" + String(autoStartEnabled ? "true" : "false");
+  payload += "\"autoStartEnabled\":" + String(autoStartEnabled ? "true" : "false") + ",";
+  payload += "\"dryRunProtectionEnabled\":" + String(dryRunProtectionEnabled ? "true" : "false");
   payload += "}";
 
   mqttClient.publish(mqtt_topic_telemetry, payload.c_str());

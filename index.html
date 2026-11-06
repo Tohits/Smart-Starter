@@ -83,8 +83,8 @@
             </div>
         </div>
 
-        <!-- Combined Hardware & Auto-Start Bar -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+        <!-- Combined Hardware, Auto-Start & Dry-Run Bar -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
             <!-- ESP32 Hardware Status -->
             <div id="hardwareBar" class="bg-slate-800 border border-slate-700 p-2.5 rounded-xl shadow flex items-center justify-between gap-2 transition-colors duration-300">
                 <div class="flex items-center gap-1.5">
@@ -105,11 +105,24 @@
                 <div class="flex items-center gap-2">
                     <span class="text-base">⚡</span>
                     <div>
-                        <h4 id="autoStartTitle" class="font-bold text-white text-[11px]">Auto Start on Power Return</h4>
+                        <h4 id="autoStartTitle" class="font-bold text-white text-[11px]">Auto Start</h4>
                     </div>
                 </div>
                 <button id="autoStartBtn" onclick="toggleAutoStart()" class="bg-slate-700 hover:bg-slate-600 text-slate-300 border border-slate-600 font-bold px-3 py-1 rounded-lg text-[10px] shadow transition whitespace-nowrap">
                     Disabled ⚪
+                </button>
+            </div>
+
+            <!-- Dry-Run Protection Toggle -->
+            <div id="dryRunCard" class="bg-slate-800 border border-slate-700 p-2.5 rounded-xl shadow flex items-center justify-between gap-2 transition-colors duration-300">
+                <div class="flex items-center gap-2">
+                    <span class="text-base">💧</span>
+                    <div>
+                        <h4 id="dryRunTitle" class="font-bold text-white text-[11px]">Dry-Run Trip</h4>
+                    </div>
+                </div>
+                <button id="dryRunBtn" onclick="toggleDryRun()" class="bg-emerald-600 text-white font-bold px-3 py-1 rounded-lg text-[10px] shadow transition whitespace-nowrap">
+                    Active 🟢
                 </button>
             </div>
         </div>
@@ -156,13 +169,14 @@
         Smart Starter Global Cloud Dashboard &bull; Powered by HiveMQ Cloud & Vercel
     </footer>
 
-    <!-- Global Cloud MQTT WebSockets Client & Native Mobile System Notifications -->
+    <!-- Global Cloud MQTT WebSockets Client & Mobile Notifications -->
     <script>
         let currentAutoStart = false;
+        let currentDryRun = true;
         let lastReceivedStatus = 'OFF';
         let lastNotifiedStatus = '';
 
-        // --- Native Mobile App System Notifications (Service Worker Integration) ---
+        // --- Mobile Native Notifications ---
         function requestNotificationPermission() {
             if ('Notification' in window) {
                 Notification.requestPermission().then(permission => {
@@ -182,7 +196,7 @@
                         body: body,
                         icon: '/icon.svg',
                         badge: '/icon.svg',
-                        tag: tag, // Tagging replaces old notifications cleanly without creating spam
+                        tag: tag,
                         renotify: true,
                         vibrate: tag.includes('fault') ? [300, 100, 300, 100, 300] : [100],
                         data: { url: '/' }
@@ -201,11 +215,13 @@
             const themeSelect = document.getElementById('themeSelect');
             const hardwareBar = document.getElementById('hardwareBar');
             const autoStartCard = document.getElementById('autoStartCard');
+            const dryRunCard = document.getElementById('dryRunCard');
             const telemetryHeading = document.getElementById('telemetryHeading');
             const espLabel = document.getElementById('espLabel');
             const uptimeLabel = document.getElementById('uptimeLabel');
             const espUptime = document.getElementById('espUptime');
             const autoStartTitle = document.getElementById('autoStartTitle');
+            const dryRunTitle = document.getElementById('dryRunTitle');
             const telemetryCards = document.querySelectorAll('.telemetryCard');
             const phaseLabels = document.querySelectorAll('.phaseLabel');
             const unitLabels = document.querySelectorAll('.unitLabel');
@@ -218,11 +234,13 @@
                 themeSelect.className = "bg-slate-700 text-slate-100 text-[11px] px-2 py-1 rounded-lg border border-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer shadow-sm";
                 hardwareBar.className = "bg-slate-800 border border-slate-700 p-2.5 rounded-xl shadow flex items-center justify-between gap-2 transition-colors duration-300";
                 autoStartCard.className = "bg-slate-800 border border-slate-700 p-2.5 rounded-xl shadow flex items-center justify-between gap-2 transition-colors duration-300";
+                dryRunCard.className = "bg-slate-800 border border-slate-700 p-2.5 rounded-xl shadow flex items-center justify-between gap-2 transition-colors duration-300";
                 telemetryHeading.className = "text-xs font-bold mb-1.5 text-slate-300 uppercase tracking-wider";
                 espLabel.className = "text-slate-400 font-semibold text-[11px]";
                 uptimeLabel.className = "text-[10px] text-slate-300";
                 espUptime.className = "font-bold text-white";
                 autoStartTitle.className = "font-bold text-white text-[11px]";
+                dryRunTitle.className = "font-bold text-white text-[11px]";
 
                 telemetryCards.forEach(c => c.className = "telemetryCard bg-slate-800 border border-slate-700 p-2.5 rounded-xl shadow text-center transition-colors duration-300");
                 phaseLabels.forEach(p => p.className = "phaseLabel text-slate-400 text-[11px] font-semibold");
@@ -236,11 +254,13 @@
                 themeSelect.className = "bg-slate-100 text-slate-900 text-[11px] px-2 py-1 rounded-lg border border-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer shadow-sm font-semibold";
                 hardwareBar.className = "bg-white border border-slate-200 p-2.5 rounded-xl shadow-sm flex items-center justify-between gap-2 transition-colors duration-300";
                 autoStartCard.className = "bg-white border border-slate-200 p-2.5 rounded-xl shadow-sm flex items-center justify-between gap-2 transition-colors duration-300";
+                dryRunCard.className = "bg-white border border-slate-200 p-2.5 rounded-xl shadow-sm flex items-center justify-between gap-2 transition-colors duration-300";
                 telemetryHeading.className = "text-xs font-bold mb-1.5 text-slate-800 uppercase tracking-wider";
                 espLabel.className = "text-slate-700 font-semibold text-[11px]";
                 uptimeLabel.className = "text-[10px] text-slate-700 font-medium";
                 espUptime.className = "font-bold text-slate-900";
                 autoStartTitle.className = "font-bold text-slate-900 text-[11px]";
+                dryRunTitle.className = "font-bold text-slate-900 text-[11px]";
 
                 telemetryCards.forEach(c => c.className = "telemetryCard bg-white border border-slate-200 p-2.5 rounded-xl shadow-sm text-center transition-colors duration-300");
                 phaseLabels.forEach(p => p.className = "phaseLabel text-slate-600 text-[11px] font-semibold");
@@ -442,7 +462,7 @@
                     const data = JSON.parse(payload.toString());
                     const statusText = document.getElementById('statusText');
 
-                    // Trigger Native Mobile System Notification only on status changes or faults (no spam!)
+                    // Trigger Native Mobile System Notification only on status changes or faults
                     if (data.status !== lastNotifiedStatus) {
                         lastNotifiedStatus = data.status;
                         if (data.status.startsWith('TRIPPED')) {
@@ -508,6 +528,23 @@
                         }
                     }
 
+                    // Dry-Run Protection Toggle Status
+                    if (data.dryRunProtectionEnabled !== undefined) {
+                        currentDryRun = data.dryRunProtectionEnabled;
+                        const dryBtn = document.getElementById('dryRunBtn');
+                        const isDark = document.getElementById('htmlRoot').classList.contains('dark');
+
+                        if (currentDryRun) {
+                            dryBtn.className = "bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1 rounded-lg text-[10px] shadow transition whitespace-nowrap";
+                            dryBtn.innerText = "Active 🟢";
+                        } else {
+                            dryBtn.className = isDark
+                                ? "bg-slate-700 hover:bg-slate-600 text-slate-300 border border-slate-600 font-bold px-3 py-1 rounded-lg text-[10px] shadow transition whitespace-nowrap"
+                                : "bg-slate-200 hover:bg-slate-300 text-slate-800 border border-slate-300 font-bold px-3 py-1 rounded-lg text-[10px] shadow-sm transition whitespace-nowrap";
+                            dryBtn.innerText = "Disabled ⚪";
+                        }
+                    }
+
                     // ESP32 Hardware Telemetry
                     if (data.uptime !== undefined) {
                         document.getElementById('espUptime').innerText = formatUptime(data.uptime);
@@ -560,6 +597,18 @@
                     alert("Failed to toggle Auto-Start: " + err.message);
                 } else {
                     console.log(`Auto-Start command ${command} published successfully`);
+                }
+            });
+        }
+
+        function toggleDryRun() {
+            const nextState = !currentDryRun;
+            const command = nextState ? 'DRYRUN_ON' : 'DRYRUN_OFF';
+            client.publish('smartstarter/motor1/control', command, { qos: 1 }, (err) => {
+                if (err) {
+                    alert("Failed to toggle Dry-Run Protection: " + err.message);
+                } else {
+                    console.log(`Dry-Run command ${command} published successfully`);
                 }
             });
         }
