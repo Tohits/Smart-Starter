@@ -114,10 +114,10 @@
             </div>
         </div>
 
-        <!-- Combined Hardware, Auto-Start & Dry-Run Bar -->
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+        <!-- Combined Bar: Hardware, Auto-Start, Dry-Run & Time Scheduler -->
+        <div class="grid grid-cols-1 sm:grid-cols-4 gap-2 text-xs">
             <!-- ESP32 Hardware Status -->
-            <div id="hardwareBar" class="bg-slate-800 border border-slate-700 p-2 rounded-xl shadow flex items-center justify-between gap-2 transition-colors duration-300">
+            <div id="hardwareBar" class="bg-slate-800 border border-slate-700 p-2 rounded-xl shadow flex items-center justify-between gap-1 transition-colors duration-300">
                 <div class="flex items-center gap-1">
                     <span id="espLabel" class="text-slate-400 font-semibold text-[10px]">ESP32:</span>
                     <span id="espHealthBadge" class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-400">Offline</span>
@@ -135,28 +135,39 @@
             </div>
 
             <!-- Auto-Start Toggle -->
-            <div id="autoStartCard" class="bg-slate-800 border border-slate-700 p-2 rounded-xl shadow flex items-center justify-between gap-2 transition-colors duration-300">
-                <div class="flex items-center gap-1.5">
+            <div id="autoStartCard" class="bg-slate-800 border border-slate-700 p-2 rounded-xl shadow flex items-center justify-between gap-1 transition-colors duration-300">
+                <div class="flex items-center gap-1">
                     <span class="text-sm">⚡</span>
-                    <div>
-                        <h4 id="autoStartTitle" class="font-bold text-white text-[10px]">Auto Start</h4>
-                    </div>
+                    <h4 id="autoStartTitle" class="font-bold text-white text-[10px]">Auto Start</h4>
                 </div>
-                <button id="autoStartBtn" onclick="toggleAutoStart()" class="bg-slate-700 hover:bg-slate-600 text-slate-300 border border-slate-600 font-bold px-2.5 py-0.5 rounded-lg text-[9px] shadow transition whitespace-nowrap">
+                <button id="autoStartBtn" onclick="toggleAutoStart()" class="bg-slate-700 hover:bg-slate-600 text-slate-300 border border-slate-600 font-bold px-2 py-0.5 rounded-lg text-[9px] shadow transition whitespace-nowrap">
                     Disabled ⚪
                 </button>
             </div>
 
             <!-- Dry-Run Protection Toggle -->
-            <div id="dryRunCard" class="bg-slate-800 border border-slate-700 p-2 rounded-xl shadow flex items-center justify-between gap-2 transition-colors duration-300">
-                <div class="flex items-center gap-1.5">
+            <div id="dryRunCard" class="bg-slate-800 border border-slate-700 p-2 rounded-xl shadow flex items-center justify-between gap-1 transition-colors duration-300">
+                <div class="flex items-center gap-1">
                     <span class="text-sm">💧</span>
-                    <div>
-                        <h4 id="dryRunTitle" class="font-bold text-white text-[10px]">Dry-Run Trip</h4>
+                    <h4 id="dryRunTitle" class="font-bold text-white text-[10px]">Dry-Run</h4>
+                </div>
+                <button id="dryRunBtn" onclick="toggleDryRun()" class="bg-emerald-600 text-white font-bold px-2 py-0.5 rounded-lg text-[9px] shadow transition whitespace-nowrap">
+                    Active 🟢
+                </button>
+            </div>
+
+            <!-- Time Scheduler Controls -->
+            <div id="scheduleCard" class="bg-slate-800 border border-slate-700 p-2 rounded-xl shadow flex items-center justify-between gap-1 transition-colors duration-300">
+                <div class="flex items-center gap-1">
+                    <span class="text-sm">⏰</span>
+                    <div class="flex items-center gap-1">
+                        <input type="time" id="schedStartTime" value="06:30" aria-label="Schedule Start Time" class="bg-slate-900 border border-slate-700 text-white text-[10px] px-1 py-0.5 rounded font-mono">
+                        <span class="text-[9px] text-slate-400">-</span>
+                        <input type="time" id="schedStopTime" value="18:00" aria-label="Schedule Stop Time" class="bg-slate-900 border border-slate-700 text-white text-[10px] px-1 py-0.5 rounded font-mono">
                     </div>
                 </div>
-                <button id="dryRunBtn" onclick="toggleDryRun()" class="bg-emerald-600 text-white font-bold px-2.5 py-0.5 rounded-lg text-[9px] shadow transition whitespace-nowrap">
-                    Active 🟢
+                <button id="schedBtn" onclick="toggleSchedule()" class="bg-slate-700 hover:bg-slate-600 text-slate-300 border border-slate-600 font-bold px-2 py-0.5 rounded-lg text-[9px] shadow transition whitespace-nowrap">
+                    Disabled ⚪
                 </button>
             </div>
         </div>
@@ -239,6 +250,7 @@
     <script>
         let currentAutoStart = false;
         let currentDryRun = true;
+        let currentScheduleEnabled = false;
         let lastReceivedStatus = 'OFF';
         let lastNotifiedStatus = '';
         let commandTimeoutId = null;
@@ -428,6 +440,7 @@
             const hardwareBar = document.getElementById('hardwareBar');
             const autoStartCard = document.getElementById('autoStartCard');
             const dryRunCard = document.getElementById('dryRunCard');
+            const scheduleCard = document.getElementById('scheduleCard');
             const healthPanel = document.getElementById('healthPanel');
             const telemetryHeading = document.getElementById('telemetryHeading');
             const espLabel = document.getElementById('espLabel');
@@ -445,9 +458,10 @@
                 header.className = "bg-slate-800 border-b border-slate-700 py-2 px-4 shadow-md transition-colors duration-300";
                 footer.className = "bg-slate-800 border-t border-slate-700 py-1.5 px-4 text-center text-[9px] text-slate-500 font-medium transition-colors duration-300";
                 themeSelect.className = "bg-slate-700 text-slate-100 text-[10px] px-2 py-0.5 rounded-lg border border-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer shadow-sm";
-                hardwareBar.className = "bg-slate-800 border border-slate-700 p-2 rounded-xl shadow flex items-center justify-between gap-2 transition-colors duration-300";
-                autoStartCard.className = "bg-slate-800 border border-slate-700 p-2 rounded-xl shadow flex items-center justify-between gap-2 transition-colors duration-300";
-                dryRunCard.className = "bg-slate-800 border border-slate-700 p-2 rounded-xl shadow flex items-center justify-between gap-2 transition-colors duration-300";
+                hardwareBar.className = "bg-slate-800 border border-slate-700 p-2 rounded-xl shadow flex items-center justify-between gap-1 transition-colors duration-300";
+                autoStartCard.className = "bg-slate-800 border border-slate-700 p-2 rounded-xl shadow flex items-center justify-between gap-1 transition-colors duration-300";
+                dryRunCard.className = "bg-slate-800 border border-slate-700 p-2 rounded-xl shadow flex items-center justify-between gap-1 transition-colors duration-300";
+                scheduleCard.className = "bg-slate-800 border border-slate-700 p-2 rounded-xl shadow flex items-center justify-between gap-1 transition-colors duration-300";
                 healthPanel.className = "bg-slate-800 border border-slate-700 p-2 rounded-xl shadow transition-colors duration-300";
                 telemetryHeading.className = "text-[10px] font-bold mb-1 text-slate-300 uppercase tracking-wider";
                 espLabel.className = "text-slate-400 font-semibold text-[10px]";
@@ -466,9 +480,10 @@
                 header.className = "bg-white border-b border-slate-200 py-2 px-4 shadow-sm transition-colors duration-300";
                 footer.className = "bg-white border-t border-slate-200 py-1.5 px-4 text-center text-[9px] text-slate-600 font-semibold transition-colors duration-300";
                 themeSelect.className = "bg-slate-100 text-slate-900 text-[10px] px-2 py-0.5 rounded-lg border border-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer shadow-sm font-semibold";
-                hardwareBar.className = "bg-white border border-slate-200 p-2 rounded-xl shadow-sm flex items-center justify-between gap-2 transition-colors duration-300";
-                autoStartCard.className = "bg-white border border-slate-200 p-2 rounded-xl shadow-sm flex items-center justify-between gap-2 transition-colors duration-300";
-                dryRunCard.className = "bg-white border border-slate-200 p-2 rounded-xl shadow-sm flex items-center justify-between gap-2 transition-colors duration-300";
+                hardwareBar.className = "bg-white border border-slate-200 p-2 rounded-xl shadow-sm flex items-center justify-between gap-1 transition-colors duration-300";
+                autoStartCard.className = "bg-white border border-slate-200 p-2 rounded-xl shadow-sm flex items-center justify-between gap-1 transition-colors duration-300";
+                dryRunCard.className = "bg-white border border-slate-200 p-2 rounded-xl shadow-sm flex items-center justify-between gap-1 transition-colors duration-300";
+                scheduleCard.className = "bg-white border border-slate-200 p-2 rounded-xl shadow-sm flex items-center justify-between gap-1 transition-colors duration-300";
                 healthPanel.className = "bg-white border border-slate-200 p-2 rounded-xl shadow-sm transition-colors duration-300";
                 telemetryHeading.className = "text-[10px] font-bold mb-1 text-slate-800 uppercase tracking-wider";
                 espLabel.className = "text-slate-700 font-semibold text-[10px]";
@@ -744,12 +759,12 @@
                         const isDark = document.getElementById('htmlRoot').classList.contains('dark');
 
                         if (currentAutoStart) {
-                            autoBtn.className = "bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-2.5 py-0.5 rounded-lg text-[9px] shadow transition whitespace-nowrap";
+                            autoBtn.className = "bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-2 py-0.5 rounded-lg text-[9px] shadow transition whitespace-nowrap";
                             autoBtn.innerText = "Enabled 🟢";
                         } else {
                             autoBtn.className = isDark
-                                ? "bg-slate-700 hover:bg-slate-600 text-slate-300 border border-slate-600 font-bold px-2.5 py-0.5 rounded-lg text-[9px] shadow transition whitespace-nowrap"
-                                : "bg-slate-200 hover:bg-slate-300 text-slate-800 border border-slate-300 font-bold px-2.5 py-0.5 rounded-lg text-[9px] shadow-sm transition whitespace-nowrap";
+                                ? "bg-slate-700 hover:bg-slate-600 text-slate-300 border border-slate-600 font-bold px-2 py-0.5 rounded-lg text-[9px] shadow transition whitespace-nowrap"
+                                : "bg-slate-200 hover:bg-slate-300 text-slate-800 border border-slate-300 font-bold px-2 py-0.5 rounded-lg text-[9px] shadow-sm transition whitespace-nowrap";
                             autoBtn.innerText = "Disabled ⚪";
                         }
                     }
@@ -761,13 +776,33 @@
                         const isDark = document.getElementById('htmlRoot').classList.contains('dark');
 
                         if (currentDryRun) {
-                            dryBtn.className = "bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-2.5 py-0.5 rounded-lg text-[9px] shadow transition whitespace-nowrap";
+                            dryBtn.className = "bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-2 py-0.5 rounded-lg text-[9px] shadow transition whitespace-nowrap";
                             dryBtn.innerText = "Active 🟢";
                         } else {
                             dryBtn.className = isDark
-                                ? "bg-slate-700 hover:bg-slate-600 text-slate-300 border border-slate-600 font-bold px-2.5 py-0.5 rounded-lg text-[9px] shadow transition whitespace-nowrap"
-                                : "bg-slate-200 hover:bg-slate-300 text-slate-800 border border-slate-300 font-bold px-2.5 py-0.5 rounded-lg text-[9px] shadow-sm transition whitespace-nowrap";
+                                ? "bg-slate-700 hover:bg-slate-600 text-slate-300 border border-slate-600 font-bold px-2 py-0.5 rounded-lg text-[9px] shadow transition whitespace-nowrap"
+                                : "bg-slate-200 hover:bg-slate-300 text-slate-800 border border-slate-300 font-bold px-2 py-0.5 rounded-lg text-[9px] shadow-sm transition whitespace-nowrap";
                             dryBtn.innerText = "Disabled ⚪";
+                        }
+                    }
+
+                    // Time Schedule Status
+                    if (data.scheduleEnabled !== undefined) {
+                        currentScheduleEnabled = data.scheduleEnabled;
+                        const schedBtn = document.getElementById('schedBtn');
+                        const isDark = document.getElementById('htmlRoot').classList.contains('dark');
+
+                        if (data.scheduleStart) document.getElementById('schedStartTime').value = data.scheduleStart;
+                        if (data.scheduleStop) document.getElementById('schedStopTime').value = data.scheduleStop;
+
+                        if (currentScheduleEnabled) {
+                            schedBtn.className = "bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-2 py-0.5 rounded-lg text-[9px] shadow transition whitespace-nowrap";
+                            schedBtn.innerText = "Active 🟢";
+                        } else {
+                            schedBtn.className = isDark
+                                ? "bg-slate-700 hover:bg-slate-600 text-slate-300 border border-slate-600 font-bold px-2 py-0.5 rounded-lg text-[9px] shadow transition whitespace-nowrap"
+                                : "bg-slate-200 hover:bg-slate-300 text-slate-800 border border-slate-300 font-bold px-2 py-0.5 rounded-lg text-[9px] shadow-sm transition whitespace-nowrap";
+                            schedBtn.innerText = "Disabled ⚪";
                         }
                     }
 
@@ -846,6 +881,23 @@
                     console.log(`Dry-Run command ${command} published successfully`);
                 }
             });
+        }
+
+        function toggleSchedule() {
+            const nextState = !currentScheduleEnabled;
+            const startTime = document.getElementById('schedStartTime').value || '06:30';
+            const stopTime = document.getElementById('schedStopTime').value || '18:00';
+
+            if (nextState) {
+                const command = `SCHEDULE_CONFIG:${startTime},${stopTime}`;
+                client.publish('smartstarter/motor1/control', command, { qos: 1 }, (err) => {
+                    if (err) alert("Failed to configure schedule: " + err.message);
+                });
+            } else {
+                client.publish('smartstarter/motor1/control', 'SCHEDULE_OFF', { qos: 1 }, (err) => {
+                    if (err) alert("Failed to disable schedule: " + err.message);
+                });
+            }
         }
 
         function rebootEsp() {

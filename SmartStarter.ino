@@ -2,13 +2,13 @@
  * Complete Industrial 5 HP 3-Phase Smart Motor Starter Firmware for ESP32S
  * Features:
  * - Captive Portal (WiFiManager) for easy Wi-Fi setup
+ * - Dynamic Time Scheduler (Configurable Start/Stop Times via MQTT Dashboard)
  * - Intelligent Dry-Run Protection with 5-Second Startup Grace Period
  * - 3-Phase Current & Voltage Monitoring with Zero-Noise Clamping
  * - Schneider LC1-D1810 Contactor Control via Single-Channel Relay on Pin P5 (GPIO 5)
  * - 100% Global Cloud Control, Telemetry & Remote Reboot via Secure HiveMQ MQTT (Port 8883)
- * - NTP Time Synchronization, Time Scheduling & Auto-Start Mode
+ * - NTP Time Synchronization & Auto-Start Mode
  * - Hardware Watchdog Timer (WDT) for Fail-Proof Auto-Recovery
- * - Expanded MQTT Buffer Size (512 bytes) for full JSON telemetry delivery
  * - Continuous Protections (Overload, Dry-Run, Over-Temp, Phase Failure)
  */
 
@@ -66,12 +66,12 @@ const char* mqtt_topic_control   = "smartstarter/motor1/control";
 const long gmtOffset_sec = 19800;
 const int daylightOffset_sec = 0;
 
-// Time Schedule Settings
-const int SCHEDULE_START_HOUR = 6;   // 06:00 AM
-const int SCHEDULE_START_MIN = 30;
-const int SCHEDULE_STOP_HOUR = 18;   // 06:00 PM
-const int SCHEDULE_STOP_MIN = 0;
-bool scheduleEnabled = false;
+// Dynamic Time Schedule Settings
+int SCHEDULE_START_HOUR = 6;   // Default 06:30 AM
+int SCHEDULE_START_MIN  = 30;
+int SCHEDULE_STOP_HOUR  = 18;  // Default 06:00 PM
+int SCHEDULE_STOP_MIN   = 0;
+bool scheduleEnabled = false;  // Toggle time schedule ON/OFF via Web Dashboard
 
 unsigned long lastMqttPublish = 0;
 const long mqttInterval = 3000; // Publish telemetry every 3 seconds
@@ -84,7 +84,6 @@ void callback(char* topic, byte* payload, unsigned int length) {
     message += (char)payload[i];
   }
   message.trim();
-  message.toUpperCase();
 
   Serial.print(">>> MQTT Message received on topic [");
   Serial.print(topic);
@@ -92,29 +91,57 @@ void callback(char* topic, byte* payload, unsigned int length) {
   Serial.print(message);
   Serial.println("'");
 
+  String upperMsg = message;
+  upperMsg.toUpperCase();
+
   if (String(topic) == mqtt_topic_control) {
-    if (message == "ON" || message == "START" || message == "1") {
+    if (upperMsg == "ON" || upperMsg == "START" || upperMsg == "1") {
       Serial.println(">>> Command matched: Turning MOTOR ON");
       setMotorState(true);
-    } else if (message == "OFF" || message == "STOP" || message == "0") {
+    } else if (upperMsg == "OFF" || upperMsg == "STOP" || upperMsg == "0") {
       Serial.println(">>> Command matched: Turning MOTOR OFF");
       setMotorState(false);
-    } else if (message == "AUTOSTART_ON") {
+    } else if (upperMsg == "AUTOSTART_ON") {
       autoStartEnabled = true;
       Serial.println(">>> Auto Start Motor ENABLED");
       if (!motorState) {
         setMotorState(true);
       }
-    } else if (message == "AUTOSTART_OFF") {
+    } else if (upperMsg == "AUTOSTART_OFF") {
       autoStartEnabled = false;
       Serial.println(">>> Auto Start Motor DISABLED");
-    } else if (message == "DRYRUN_ON") {
+    } else if (upperMsg == "DRYRUN_ON") {
       dryRunProtectionEnabled = true;
       Serial.println(">>> Dry-Run Protection ENABLED");
-    } else if (message == "DRYRUN_OFF") {
+    } else if (upperMsg == "DRYRUN_OFF") {
       dryRunProtectionEnabled = false;
       Serial.println(">>> Dry-Run Protection DISABLED");
-    } else if (message == "REBOOT" || message == "RESTART") {
+    } else if (upperMsg == "SCHEDULE_ON") {
+      scheduleEnabled = true;
+      Serial.println(">>> Time Schedule ENABLED");
+    } else if (upperMsg == "SCHEDULE_OFF") {
+      scheduleEnabled = false;
+      Serial.println(">>> Time Schedule DISABLED");
+    } else if (message.startsWith("SCHEDULE_CONFIG:")) {
+      // Format: SCHEDULE_CONFIG:06:30,18:00
+      String times = message.substring(16);
+      int commaIdx = times.indexOf(',');
+      if (commaIdx > 0) {
+        String startStr = times.substring(0, commaIdx);
+        String stopStr = times.substring(commaIdx + 1);
+        int startColon = startStr.indexOf(':');
+        int stopColon = stopStr.indexOf(':');
+        if (startColon > 0 && stopColon > 0) {
+          SCHEDULE_START_HOUR = startStr.substring(0, startColon).toInt();
+          SCHEDULE_START_MIN  = startStr.substring(startColon + 1).toInt();
+          SCHEDULE_STOP_HOUR  = stopStr.substring(0, stopColon).toInt();
+          SCHEDULE_STOP_MIN   = stopStr.substring(stopColon + 1).toInt();
+          scheduleEnabled = true;
+          Serial.printf(">>> Schedule Updated: Start %02d:%02d, Stop %02d:%02d\n",
+                        SCHEDULE_START_HOUR, SCHEDULE_START_MIN, SCHEDULE_STOP_HOUR, SCHEDULE_STOP_MIN);
+        }
+      }
+    } else if (upperMsg == "REBOOT" || upperMsg == "RESTART") {
       Serial.println(">>> Command matched: REBOOTING ESP32...");
       mqttClient.publish(mqtt_topic_telemetry, "{\"status\":\"REBOOTING\"}");
       delay(500);
@@ -185,7 +212,7 @@ void setup() {
   espClient.setInsecure();
   mqttClient.setServer(mqtt_server, mqtt_port);
   mqttClient.setCallback(callback);
-  mqttClient.setBufferSize(512); // Expand MQTT buffer to 512 bytes for full telemetry payload
+  mqttClient.setBufferSize(512);
 
   configTime(gmtOffset_sec, daylightOffset_sec, "pool.ntp.org", "time.nist.gov");
 
@@ -247,20 +274,22 @@ void loop() {
     publishTelemetry();
   }
 
-  // --- Time Scheduling Check ---
+  // --- TIME SCHEDULING CHECK ---
   if (scheduleEnabled) {
     struct tm timeinfo;
     if (getLocalTime(&timeinfo)) {
       int currentHour = timeinfo.tm_hour;
       int currentMin = timeinfo.tm_min;
 
+      // Match Start Schedule
       if (currentHour == SCHEDULE_START_HOUR && currentMin == SCHEDULE_START_MIN && !motorState) {
-        Serial.println("Schedule Trigger: Starting Motor");
+        Serial.println(">>> SCHEDULE TRIGGER: Starting Motor!");
         setMotorState(true);
         publishTelemetry();
       }
+      // Match Stop Schedule
       else if (currentHour == SCHEDULE_STOP_HOUR && currentMin == SCHEDULE_STOP_MIN && motorState) {
-        Serial.println("Schedule Trigger: Stopping Motor");
+        Serial.println(">>> SCHEDULE TRIGGER: Stopping Motor!");
         setMotorState(false);
         publishTelemetry();
       }
@@ -274,12 +303,12 @@ void loop() {
     float i3 = readRMSCurrent(CT3_PIN);
     float temp = readMotorTemperature();
 
-    // 1. Overload Protection (Any phase exceeds FLC)
+    // 1. Overload Protection
     if (i1 > RATED_FLC || i2 > RATED_FLC || i3 > RATED_FLC) {
       Serial.println(">>> TRIP: Overload detected on phase(s)! Shutting down motor immediately.");
       tripMotor("TRIPPED_OVERLOAD");
     }
-    // 2. Over-Temperature Thermal Protection
+    // 2. Over-Temperature Protection
     else if (temp > MAX_TEMP_LIMIT) {
       Serial.println(">>> TRIP: High Motor Temperature detected! Shutting down motor immediately.");
       tripMotor("TRIPPED_OVERTEMP");
@@ -336,7 +365,7 @@ float readRMSCurrent(int pin) {
 float readMotorTemperature() {
   int raw = analogRead(TEMP_PIN);
   if (raw > 3600 || raw < 100) {
-    return 35.0; // Return normal 35°C ambient temperature when sensor is disconnected
+    return 35.0;
   }
   float tempC = (raw / 4095.0) * 100.0;
   return tempC;
@@ -356,7 +385,7 @@ void setMotorState(bool state) {
   motorState = state;
   digitalWrite(RELAY_PIN, state ? RELAY_ON : RELAY_OFF);
   if (state) {
-    motorStartTime = millis(); // Record start timestamp for dry-run grace period
+    motorStartTime = millis();
   }
   Serial.print(">>> Relay Pin P5 (GPIO 5) set to: ");
   Serial.println(state ? "RELAY_ON (LOW)" : "RELAY_OFF (HIGH)");
@@ -381,6 +410,10 @@ void publishTelemetry() {
     strftime(timeStr, sizeof(timeStr), "%Y-%m-%d %H:%M:%S", &timeinfo);
   }
 
+  char startBuf[8], stopBuf[8];
+  snprintf(startBuf, sizeof(startBuf), "%02d:%02d", SCHEDULE_START_HOUR, SCHEDULE_START_MIN);
+  snprintf(stopBuf, sizeof(stopBuf), "%02d:%02d", SCHEDULE_STOP_HOUR, SCHEDULE_STOP_MIN);
+
   String payload = "{";
   payload += "\"status\":\"" + String(motorState ? "ON" : "OFF") + "\",";
   payload += "\"phase1\":" + String(i1, 2) + ",";
@@ -397,6 +430,8 @@ void publishTelemetry() {
   payload += "\"ssid\":\"" + ssidName + "\",";
   payload += "\"uptime\":" + String(uptimeSec) + ",";
   payload += "\"scheduleEnabled\":" + String(scheduleEnabled ? "true" : "false") + ",";
+  payload += "\"scheduleStart\":\"" + String(startBuf) + "\",";
+  payload += "\"scheduleStop\":\"" + String(stopBuf) + "\",";
   payload += "\"autoStartEnabled\":" + String(autoStartEnabled ? "true" : "false") + ",";
   payload += "\"dryRunProtectionEnabled\":" + String(dryRunProtectionEnabled ? "true" : "false");
   payload += "}";
