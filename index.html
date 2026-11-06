@@ -209,34 +209,29 @@
 
     </main>
 
-    <!-- OTA Firmware Update Modal with Direct Storage File Picker -->
+    <!-- Direct OTA Wireless Portal Modal -->
     <div id="otaModal" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
         <div class="bg-slate-800 border border-slate-700 p-5 rounded-2xl max-w-md w-full shadow-2xl relative text-slate-100">
             <button onclick="closeOtaModal()" class="absolute top-3 right-3 text-slate-400 hover:text-white font-bold text-base">✕</button>
             <h3 class="text-base font-bold flex items-center gap-2 mb-1.5 text-blue-400">
-                📡 Direct Wireless OTA Firmware Update
+                📡 Direct Wireless OTA Flashing
             </h3>
             <p class="text-xs text-slate-300 mb-3 leading-relaxed">
-                Browse and select your compiled <code class="bg-slate-900 px-1 py-0.5 rounded text-blue-300">.bin</code> firmware file from storage:
+                To bypass HTTPS browser restrictions, open your ESP32's direct OTA portal in a new tab:
             </p>
 
-            <div class="bg-slate-900 border border-slate-700 p-3 rounded-xl mb-3 space-y-2">
-                <input type="file" id="otaFileInput" accept=".bin" class="block w-full text-xs text-slate-400 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-500 cursor-pointer">
-
-                <div id="otaProgressContainer" class="hidden">
-                    <div class="w-full bg-slate-700 rounded-full h-2 mb-1">
-                        <div id="otaProgressBar" class="bg-blue-500 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
-                    </div>
-                    <p id="otaStatusText" class="text-[10px] text-blue-300 text-center font-medium">Uploading firmware...</p>
-                </div>
+            <div class="bg-slate-900 border border-slate-700 p-3 rounded-xl mb-4 text-center">
+                <a id="otaDirectLink" href="http://10.146.68.77/update" target="_blank" class="text-sm font-mono font-bold text-emerald-400 hover:underline break-all">
+                    http://<span id="otaIpDisplay">10.146.68.77</span>/update 🔗
+                </a>
             </div>
 
-            <button onclick="uploadFirmwareBinary()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 rounded-xl text-xs transition shadow-lg mb-1.5 flex items-center justify-center gap-1">
-                ⚡ Upload & Flash Firmware
+            <button onclick="openOtaTab()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2.5 rounded-xl text-xs transition shadow-lg mb-2 flex items-center justify-center gap-1.5">
+                🚀 Open Local OTA Update Portal
             </button>
 
             <button onclick="closeOtaModal()" class="w-full bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold py-1.5 rounded-xl text-xs transition">
-                Cancel
+                Close
             </button>
         </div>
     </div>
@@ -246,7 +241,7 @@
         Smart Starter Global Cloud Dashboard &bull; Powered by HiveMQ Cloud & Vercel
     </footer>
 
-    <!-- Global Cloud MQTT WebSockets Client & Direct OTA File Upload -->
+    <!-- Global Cloud MQTT WebSockets Client -->
     <script>
         let currentAutoStart = false;
         let currentDryRun = true;
@@ -254,7 +249,7 @@
         let lastReceivedStatus = 'OFF';
         let lastNotifiedStatus = '';
         let commandTimeoutId = null;
-        let espLocalIp = '';
+        let espLocalIp = '10.146.68.77';
 
         function openOtaModal() {
             document.getElementById('otaModal').classList.remove('hidden');
@@ -264,67 +259,11 @@
             document.getElementById('otaModal').classList.add('hidden');
         }
 
-        async function uploadFirmwareBinary() {
-            const fileInput = document.getElementById('otaFileInput');
-            const progressContainer = document.getElementById('otaProgressContainer');
-            const progressBar = document.getElementById('otaProgressBar');
-            const otaStatusText = document.getElementById('otaStatusText');
-
-            if (!fileInput.files || fileInput.files.length === 0) {
-                alert("Please select a compiled .bin firmware file from your storage first!");
-                return;
+        function openOtaTab() {
+            let targetIp = espLocalIp || prompt("Enter ESP32 local IP address:", "10.146.68.77");
+            if (targetIp) {
+                window.open(`http://${targetIp}/update`, '_blank');
             }
-
-            const file = fileInput.files[0];
-            if (!file.name.endsWith('.bin')) {
-                alert("Invalid file type! Please select a .bin compiled binary file.");
-                return;
-            }
-
-            let targetIp = espLocalIp;
-            if (!targetIp) {
-                targetIp = prompt("Enter your ESP32's local IP address (e.g. 192.168.1.100):");
-            }
-            if (!targetIp) return;
-
-            progressContainer.classList.remove('hidden');
-            progressBar.style.width = '10%';
-            otaStatusText.innerText = "Connecting to ESP32 at " + targetIp + "...";
-
-            const formData = new FormData();
-            formData.append('update', file);
-
-            const xhr = new XMLHttpRequest();
-            xhr.open('POST', `http://${targetIp}/update`, true);
-
-            xhr.upload.onprogress = (e) => {
-                if (e.lengthComputable) {
-                    const percentComplete = Math.round((e.loaded / e.total) * 100);
-                    progressBar.style.width = `${percentComplete}%`;
-                    otaStatusText.innerText = `Flashing firmware: ${percentComplete}%`;
-                }
-            };
-
-            xhr.onload = () => {
-                if (xhr.status === 200) {
-                    progressBar.style.width = '100%';
-                    otaStatusText.innerText = "SUCCESS! Firmware updated. Rebooting ESP32...";
-                    setTimeout(() => {
-                        closeOtaModal();
-                        alert("Firmware update successful! The ESP32 is now rebooting with the new code.");
-                    }, 2000);
-                } else {
-                    alert(`Update failed (HTTP ${xhr.status}): ${xhr.responseText}`);
-                    progressContainer.classList.add('hidden');
-                }
-            };
-
-            xhr.onerror = () => {
-                alert(`Update failed. Make sure your laptop/phone is connected to the same Wi-Fi network as the ESP32 (IP: ${targetIp})!`);
-                progressContainer.classList.add('hidden');
-            };
-
-            xhr.send(formData);
         }
 
         // --- Smart Motor Health Diagnostic Calculator ---
@@ -747,9 +686,13 @@
                         document.getElementById('lastSync').innerText = `Last Sync: ${data.time}`;
                     }
 
-                    // Connected Wi-Fi SSID Badge & Local IP for zero-prompt OTA
+                    // Connected Wi-Fi SSID Badge & Local IP for direct OTA link
                     if (data.ip) {
                         espLocalIp = data.ip;
+                        const linkEl = document.getElementById('otaDirectLink');
+                        const ipEl = document.getElementById('otaIpDisplay');
+                        if (linkEl) linkEl.href = `http://${espLocalIp}/update`;
+                        if (ipEl) ipEl.innerText = espLocalIp;
                     }
 
                     if (data.ssid) {
@@ -788,7 +731,7 @@
                         } else {
                             dryBtn.className = isDark
                                 ? "bg-slate-700 hover:bg-slate-600 text-slate-300 border border-slate-600 font-bold px-2 py-0.5 rounded-lg text-[9px] shadow transition whitespace-nowrap"
-                                : "bg-slate-200 hover:bg-slate-300 text-slate-800 border border-slate-300 font-bold px-2 py-0.5 rounded-lg text-[9px] shadow transition whitespace-nowrap";
+                                : "bg-slate-200 hover:bg-slate-300 text-slate-800 border border-slate-300 font-bold px-2 py-0.5 rounded-lg text-[9px] shadow-sm transition whitespace-nowrap";
                             dryBtn.innerText = "Disabled ⚪";
                         }
                     }
