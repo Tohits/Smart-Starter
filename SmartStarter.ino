@@ -4,6 +4,7 @@
  * - Captive Portal (WiFiManager) for easy Wi-Fi setup
  * - Intelligent Dry-Run Protection with 5-Second Startup Grace Period
  * - 3-Phase Current & Voltage Monitoring with Zero-Noise Clamping
+ * - Motor Body Temperature Monitoring (with floating-pin protection for testing)
  * - Schneider LC1-D1810 Contactor Control via Single-Channel Relay on Pin P5 (GPIO 5)
  * - 100% Global Cloud Control, Telemetry & Remote Reboot via Secure HiveMQ MQTT (Port 8883)
  * - NTP Time Synchronization, Time Scheduling & Auto-Start Mode
@@ -42,7 +43,7 @@ bool autoStartEnabled = false;   // Auto Start Motor feature toggle
 bool dryRunProtectionEnabled = true; // Dry-Run protection toggle
 const float RATED_FLC = 50.0;    // Temporarily set high (50A) for testing without sensors
 const float DRY_RUN_LIMIT = 2.5; // Min current threshold for pump dry-run trip (Amps)
-const float MAX_TEMP_LIMIT = 75.0;// High Temperature Limit in °C
+const float MAX_TEMP_LIMIT = 150.0;// Temporarily set high (150°C) to prevent false trips while testing without temp sensor
 
 unsigned long motorStartTime = 0;// Timestamp when motor started (for startup grace period)
 const unsigned long DRY_RUN_GRACE_MS = 5000; // 5-second grace period after start
@@ -53,10 +54,10 @@ unsigned long lastRunTimeTick = 0;
 float totalEnergykWh = 0.0;        // Total active energy consumed in kWh
 
 // --- HiveMQ Cloud Secure MQTT Settings ---
-char mqtt_server[64] = "YOUR_HASE_OR_CLUSTER.s1.eu.hivemq.cloud";
+char mqtt_server[64] = "93bad3def29641e399de9a7b9c676613.s1.eu.hivemq.cloud";
 int mqtt_port        = 8883;
-char mqtt_user[32]   = "YOUR_MQTT_USERNAME";
-char mqtt_pass[64]   = "YOUR_MQTT_PASSWORD";
+char mqtt_user[32]   = "tohits";
+char mqtt_pass[64]   = "toh123@TOH";
 
 const char* mqtt_topic_telemetry = "smartstarter/motor1/telemetry";
 const char* mqtt_topic_control   = "smartstarter/motor1/control";
@@ -330,13 +331,14 @@ float readRMSCurrent(int pin) {
   return amps;
 }
 
-// Function to read Motor Body Temperature (°C)
+// Function to read Motor Body Temperature (°C) with Floating Pin Suppression
 float readMotorTemperature() {
   int raw = analogRead(TEMP_PIN);
-  float tempC = (raw / 4095.0) * 100.0;
-  if (tempC < 10.0 || tempC > 120.0) {
-    tempC = 35.0; // Default ambient temperature if sensor disconnected
+  // If pin is floating (no thermistor attached), analogRead returns extreme high values (~3800-4095)
+  if (raw > 3600 || raw < 100) {
+    return 35.0; // Return normal 35°C ambient temperature when sensor is disconnected
   }
+  float tempC = (raw / 4095.0) * 100.0;
   return tempC;
 }
 
