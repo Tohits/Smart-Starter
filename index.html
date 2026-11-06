@@ -116,7 +116,7 @@
 
         <!-- Combined Bar: Hardware, Auto-Start, Dry-Run & Time Scheduler -->
         <div class="grid grid-cols-1 sm:grid-cols-4 gap-2 text-xs">
-            <!-- ESP32 Hardware Status -->
+            <!-- ESP32 Hardware Status with Live Local IP -->
             <div id="hardwareBar" class="bg-slate-800 border border-slate-700 p-2 rounded-xl shadow flex items-center justify-between gap-1 transition-colors duration-300">
                 <div class="flex items-center gap-1">
                     <span id="espLabel" class="text-slate-400 font-semibold text-[10px]">ESP32:</span>
@@ -128,8 +128,9 @@
                         📡 OTA
                     </button>
                 </div>
-                <div id="wifiSsidContainer" class="hidden font-semibold text-emerald-400 bg-emerald-950/40 px-1.5 py-0.5 rounded border border-emerald-500/30 text-[9px]">
-                    📶 <span id="wifiSsid" class="text-white font-bold">--</span>
+                <div id="wifiSsidContainer" class="hidden font-semibold text-emerald-400 bg-emerald-950/40 px-1.5 py-0.5 rounded border border-emerald-500/30 text-[9px] flex items-center gap-1">
+                    <span>📶 <span id="wifiSsid" class="text-white font-bold">--</span></span>
+                    <span id="espIpBadge" class="text-blue-300 font-mono text-[9px] pl-1 border-l border-emerald-500/40">10.146.68.77</span>
                 </div>
                 <div id="uptimeLabel" class="text-[9px] text-slate-300">⏱️ <span id="espUptime" class="font-bold text-white">--</span></div>
             </div>
@@ -214,10 +215,10 @@
         <div class="bg-slate-800 border border-slate-700 p-5 rounded-2xl max-w-md w-full shadow-2xl relative text-slate-100">
             <button onclick="closeOtaModal()" class="absolute top-3 right-3 text-slate-400 hover:text-white font-bold text-base">✕</button>
             <h3 class="text-base font-bold flex items-center gap-2 mb-1.5 text-blue-400">
-                📡 Direct Wireless OTA Flashing
+                📡 Direct Wireless OTA Update Portal
             </h3>
             <p class="text-xs text-slate-300 mb-3 leading-relaxed">
-                To bypass HTTPS browser restrictions, open your ESP32's direct OTA portal in a new tab:
+                Click below to open your ESP32's local OTA portal directly in a new tab:
             </p>
 
             <div class="bg-slate-900 border border-slate-700 p-3 rounded-xl mb-4 text-center">
@@ -686,13 +687,16 @@
                         document.getElementById('lastSync').innerText = `Last Sync: ${data.time}`;
                     }
 
-                    // Connected Wi-Fi SSID Badge & Local IP for direct OTA link
+                    // Connected Wi-Fi SSID Badge & Live IP Display
                     if (data.ip) {
                         espLocalIp = data.ip;
                         const linkEl = document.getElementById('otaDirectLink');
                         const ipEl = document.getElementById('otaIpDisplay');
+                        const badgeIp = document.getElementById('espIpBadge');
+
                         if (linkEl) linkEl.href = `http://${espLocalIp}/update`;
                         if (ipEl) ipEl.innerText = espLocalIp;
+                        if (badgeIp) badgeIp.innerText = espLocalIp;
                     }
 
                     if (data.ssid) {
