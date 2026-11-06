@@ -156,17 +156,18 @@
         Smart Starter Global Cloud Dashboard &bull; Powered by HiveMQ Cloud & Vercel
     </footer>
 
-    <!-- Global Cloud MQTT WebSockets Client & Mobile Notifications -->
+    <!-- Global Cloud MQTT WebSockets Client & Native Mobile System Notifications -->
     <script>
         let currentAutoStart = false;
         let lastReceivedStatus = 'OFF';
+        let lastNotifiedStatus = '';
 
-        // --- Mobile Native Notifications ---
+        // --- Native Mobile App System Notifications (Service Worker Integration) ---
         function requestNotificationPermission() {
             if ('Notification' in window) {
                 Notification.requestPermission().then(permission => {
                     if (permission === 'granted') {
-                        alert("Mobile notifications enabled! You will receive instant alerts for motor status & fault trips.");
+                        triggerMobileNotification("Smart Starter App", "Mobile push notifications enabled!", "system-status");
                     }
                 });
             } else {
@@ -174,12 +175,18 @@
             }
         }
 
-        function triggerMobileNotification(title, body) {
-            if ('Notification' in window && Notification.permission === 'granted') {
-                new Notification(title, {
-                    body: body,
-                    icon: '/icon.svg',
-                    vibrate: [200, 100, 200]
+        function triggerMobileNotification(title, body, tag = 'motor-status') {
+            if ('serviceWorker' in navigator && Notification.permission === 'granted') {
+                navigator.serviceWorker.ready.then(registration => {
+                    registration.showNotification(title, {
+                        body: body,
+                        icon: '/icon.svg',
+                        badge: '/icon.svg',
+                        tag: tag, // Tagging replaces old notifications cleanly without creating spam
+                        renotify: true,
+                        vibrate: tag.includes('fault') ? [300, 100, 300, 100, 300] : [100],
+                        data: { url: '/' }
+                    });
                 });
             }
         }
@@ -435,9 +442,16 @@
                     const data = JSON.parse(payload.toString());
                     const statusText = document.getElementById('statusText');
 
-                    // If a trip or fault occurs, trigger mobile push notification
-                    if (data.status.startsWith('TRIPPED')) {
-                        triggerMobileNotification("🚨 Smart Starter Fault Alert!", `Motor shut down due to: ${data.status}`);
+                    // Trigger Native Mobile System Notification only on status changes or faults (no spam!)
+                    if (data.status !== lastNotifiedStatus) {
+                        lastNotifiedStatus = data.status;
+                        if (data.status.startsWith('TRIPPED')) {
+                            triggerMobileNotification("🚨 Smart Starter Fault Alert!", `Motor tripped due to: ${data.status}`, "motor-fault");
+                        } else if (data.status === 'ON') {
+                            triggerMobileNotification("⚙️ Smart Starter Status", "Motor is now RUNNING 🟢", "motor-status");
+                        } else if (data.status === 'OFF') {
+                            triggerMobileNotification("⚙️ Smart Starter Status", "Motor is now STOPPED 🔴", "motor-status");
+                        }
                     }
 
                     // Update Status directly on confirmed telemetry update
