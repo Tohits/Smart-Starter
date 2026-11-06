@@ -114,7 +114,7 @@
             </div>
         </div>
 
-        <!-- Combined Hardware, Auto-Start & Dry-Run Bar -->
+        <!-- Combined Hardware, Auto-Start, Dry-Run & OTA Bar -->
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
             <!-- ESP32 Hardware Status -->
             <div id="hardwareBar" class="bg-slate-800 border border-slate-700 p-2.5 rounded-xl shadow flex items-center justify-between gap-2 transition-colors duration-300">
@@ -123,6 +123,9 @@
                     <span id="espHealthBadge" class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-400">Offline</span>
                     <button onclick="rebootEsp()" class="bg-rose-600/20 hover:bg-rose-600/30 text-rose-400 border border-rose-500/30 px-1.5 py-0.5 rounded text-[10px] font-semibold transition">
                         🔄 Reboot
+                    </button>
+                    <button onclick="openOtaModal()" class="bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 px-1.5 py-0.5 rounded text-[10px] font-semibold transition">
+                        📡 OTA
                     </button>
                 </div>
                 <div id="wifiSsidContainer" class="hidden font-semibold text-emerald-400 bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-500/30 text-[10px]">
@@ -195,18 +198,50 @@
 
     </main>
 
+    <!-- OTA Firmware Update Modal -->
+    <div id="otaModal" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-slate-800 border border-slate-700 p-6 rounded-2xl max-w-md w-full shadow-2xl relative text-slate-100">
+            <button onclick="closeOtaModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white font-bold text-lg">✕</button>
+            <h3 class="text-lg font-bold flex items-center gap-2 mb-2 text-blue-400">
+                📡 Web OTA Firmware Update
+            </h3>
+            <p class="text-xs text-slate-300 mb-4 leading-relaxed">
+                To update your ESP32 wirelessly over local Wi-Fi, open the local update portal in your browser while connected to the same Wi-Fi router:
+            </p>
+            <div class="bg-slate-900 border border-slate-700 p-3 rounded-lg text-center font-mono text-xs text-emerald-400 mb-4 select-all">
+                <span id="otaUrlText">http://&lt;ESP32_IP&gt;/update</span>
+            </div>
+            <div class="text-[11px] text-slate-400 space-y-1.5 mb-5">
+                <p>1. Open the URL above in your browser.</p>
+                <p>2. Select your compiled <code class="bg-slate-900 px-1 py-0.5 rounded text-blue-300">.bin</code> file.</p>
+                <p>3. Click <strong>Update</strong> to flash wirelessly in seconds!</p>
+            </div>
+            <button onclick="closeOtaModal()" class="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 rounded-xl text-xs transition">
+                Close Modal
+            </button>
+        </div>
+    </div>
+
     <!-- Footer -->
     <footer class="bg-slate-800 border-t border-slate-700 py-2 px-4 text-center text-[10px] text-slate-500 font-medium transition-colors duration-300">
         Smart Starter Global Cloud Dashboard &bull; Powered by HiveMQ Cloud & Vercel
     </footer>
 
-    <!-- Global Cloud MQTT WebSockets Client & Mobile Notifications -->
+    <!-- Global Cloud MQTT WebSockets Client & OTA Modal Handlers -->
     <script>
         let currentAutoStart = false;
         let currentDryRun = true;
         let lastReceivedStatus = 'OFF';
         let lastNotifiedStatus = '';
         let commandTimeoutId = null;
+
+        function openOtaModal() {
+            document.getElementById('otaModal').classList.remove('hidden');
+        }
+
+        function closeOtaModal() {
+            document.getElementById('otaModal').classList.add('hidden');
+        }
 
         // --- Smart Motor Health Diagnostic Calculator ---
         function evaluateMotorHealth(i1, i2, i3, tempC, status) {
@@ -625,7 +660,7 @@
                         document.getElementById('lastSync').innerText = `Last Sync: ${data.time}`;
                     }
 
-                    // Connected Wi-Fi SSID Badge
+                    // Connected Wi-Fi SSID Badge & OTA URL
                     if (data.ssid) {
                         document.getElementById('wifiSsid').innerText = data.ssid;
                         document.getElementById('wifiSsidContainer').classList.remove('hidden');
@@ -703,7 +738,6 @@
 
             if (commandTimeoutId) clearTimeout(commandTimeoutId);
 
-            // Safety Guardrail: 3.5s timeout clears (Sending...) automatically
             commandTimeoutId = setTimeout(() => {
                 if (statusText.innerText.includes('Sending')) {
                     statusText.innerText = lastReceivedStatus;
