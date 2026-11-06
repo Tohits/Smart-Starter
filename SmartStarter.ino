@@ -7,6 +7,7 @@
  * - 100% Global Cloud Control, Telemetry & Remote Reboot via Secure HiveMQ MQTT (Port 8883)
  * - NTP Time Synchronization & Time Scheduling
  * - Hardware Watchdog Timer (WDT) for Fail-Proof Auto-Recovery (Compatible with ESP32 Core v2 & v3)
+ * - Transmits Connected Wi-Fi SSID, RSSI Signal & Uptime Telemetry
  * - Continuous Safety Protections (Overload, Dry-Run, Phase Failure)
  */
 
@@ -40,10 +41,10 @@ const float RATED_FLC = 50.0;    // Temporarily set high (50A) to prevent false 
 const float DRY_RUN_LIMIT = 0.5; // Min current for dry-run detection
 
 // --- HiveMQ Cloud Secure MQTT Settings ---
-char mqtt_server[64] = "YOUR_HASE_OR_CLUSTER.s1.eu.hivemq.cloud"; // Replace with your HiveMQ Cloud cluster
+char mqtt_server[64] = "93bad3def29641e399de9a7b9c676613.s1.eu.hivemq.cloud"; // Replace with your HiveMQ Cloud cluster
 int mqtt_port        = 8883;
-char mqtt_user[32]   = "YOUR_MQTT_USERNAME";                   // Replace with your username
-char mqtt_pass[64]   = "YOUR_MQTT_PASSWORD";                   // Replace with your password
+char mqtt_user[32]   = "tohits";                   // Replace with your username
+char mqtt_pass[64]   = "toh123@TOH";                   // Replace with your password
 
 const char* mqtt_topic_telemetry = "smartstarter/motor1/telemetry";
 const char* mqtt_topic_control   = "smartstarter/motor1/control";
@@ -295,6 +296,7 @@ void publishTelemetry() {
   float i3 = readRMSCurrent(CT3_PIN);
   long uptimeSec = millis() / 1000;
   int rssi = WiFi.RSSI();
+  String ssidName = WiFi.SSID();
 
   struct tm timeinfo;
   char timeStr[32] = "NTP Syncing...";
@@ -309,6 +311,7 @@ void publishTelemetry() {
   payload += "\"phase3\":" + String(i3, 2) + ",";
   payload += "\"time\":\"" + String(timeStr) + "\",";
   payload += "\"rssi\":" + String(rssi) + ",";
+  payload += "\"ssid\":\"" + ssidName + "\",";
   payload += "\"uptime\":" + String(uptimeSec) + ",";
   payload += "\"scheduleEnabled\":" + String(scheduleEnabled ? "true" : "false");
   payload += "}";
