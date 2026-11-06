@@ -4,11 +4,11 @@
  * - Captive Portal (WiFiManager) for easy Wi-Fi setup
  * - Intelligent Dry-Run Protection with 5-Second Startup Grace Period
  * - 3-Phase Current & Voltage Monitoring with Zero-Noise Clamping
- * - Motor Body Temperature Monitoring (with floating-pin protection for testing)
  * - Schneider LC1-D1810 Contactor Control via Single-Channel Relay on Pin P5 (GPIO 5)
  * - 100% Global Cloud Control, Telemetry & Remote Reboot via Secure HiveMQ MQTT (Port 8883)
  * - NTP Time Synchronization, Time Scheduling & Auto-Start Mode
  * - Hardware Watchdog Timer (WDT) for Fail-Proof Auto-Recovery
+ * - Expanded MQTT Buffer Size (512 bytes) for full JSON telemetry delivery
  * - Continuous Protections (Overload, Dry-Run, Over-Temp, Phase Failure)
  */
 
@@ -39,19 +39,19 @@ const int TEMP_PIN = 33;       // Motor Temperature Sensor Pin
 
 // Motor State & Protection Thresholds (5 HP Motor ~ 7.5A Full Load)
 bool motorState = false;
-bool autoStartEnabled = false;   // Auto Start Motor feature toggle
-bool dryRunProtectionEnabled = true; // Dry-Run protection toggle
-const float RATED_FLC = 50.0;    // Temporarily set high (50A) for testing without sensors
-const float DRY_RUN_LIMIT = 2.5; // Min current threshold for pump dry-run trip (Amps)
-const float MAX_TEMP_LIMIT = 150.0;// Temporarily set high (150°C) to prevent false trips while testing without temp sensor
+bool autoStartEnabled = false;        // Auto Start Motor feature toggle
+bool dryRunProtectionEnabled = false; // Disabled by default for bench testing without CT sensors
+const float RATED_FLC = 50.0;         // Temporarily set high (50A) for testing without sensors
+const float DRY_RUN_LIMIT = 2.5;      // Min current threshold for pump dry-run trip (Amps)
+const float MAX_TEMP_LIMIT = 150.0;   // Temporarily set high (150°C) to prevent false trips while testing without temp sensor
 
-unsigned long motorStartTime = 0;// Timestamp when motor started (for startup grace period)
+unsigned long motorStartTime = 0;     // Timestamp when motor started (for startup grace period)
 const unsigned long DRY_RUN_GRACE_MS = 5000; // 5-second grace period after start
 
 // Energy & Running Hour Metering
-unsigned long totalRunTimeSec = 0; // Total motor running hours in seconds
+unsigned long totalRunTimeSec = 0;    // Total motor running hours in seconds
 unsigned long lastRunTimeTick = 0;
-float totalEnergykWh = 0.0;        // Total active energy consumed in kWh
+float totalEnergykWh = 0.0;           // Total active energy consumed in kWh
 
 // --- HiveMQ Cloud Secure MQTT Settings ---
 char mqtt_server[64] = "93bad3def29641e399de9a7b9c676613.s1.eu.hivemq.cloud";
@@ -185,6 +185,7 @@ void setup() {
   espClient.setInsecure();
   mqttClient.setServer(mqtt_server, mqtt_port);
   mqttClient.setCallback(callback);
+  mqttClient.setBufferSize(512); // Expand MQTT buffer to 512 bytes for full telemetry payload
 
   configTime(gmtOffset_sec, daylightOffset_sec, "pool.ntp.org", "time.nist.gov");
 
@@ -334,7 +335,6 @@ float readRMSCurrent(int pin) {
 // Function to read Motor Body Temperature (°C) with Floating Pin Suppression
 float readMotorTemperature() {
   int raw = analogRead(TEMP_PIN);
-  // If pin is floating (no thermistor attached), analogRead returns extreme high values (~3800-4095)
   if (raw > 3600 || raw < 100) {
     return 35.0; // Return normal 35°C ambient temperature when sensor is disconnected
   }
