@@ -9,6 +9,7 @@
  * - 100% Global Cloud Control, Telemetry & Remote Reboot via Secure HiveMQ MQTT (Port 8883)
  * - NTP Time Synchronization & Auto-Start Mode
  * - Hardware Watchdog Timer (WDT) for Fail-Proof Auto-Recovery
+ * - Expanded MQTT Buffer Size (512 bytes) & Transmits Local IP for Zero-Prompt OTA Updates
  * - Continuous Protections (Overload, Dry-Run, Over-Temp, Phase Failure)
  */
 
@@ -123,7 +124,6 @@ void callback(char* topic, byte* payload, unsigned int length) {
       scheduleEnabled = false;
       Serial.println(">>> Time Schedule DISABLED");
     } else if (message.startsWith("SCHEDULE_CONFIG:")) {
-      // Format: SCHEDULE_CONFIG:06:30,18:00
       String times = message.substring(16);
       int commaIdx = times.indexOf(',');
       if (commaIdx > 0) {
@@ -281,13 +281,11 @@ void loop() {
       int currentHour = timeinfo.tm_hour;
       int currentMin = timeinfo.tm_min;
 
-      // Match Start Schedule
       if (currentHour == SCHEDULE_START_HOUR && currentMin == SCHEDULE_START_MIN && !motorState) {
         Serial.println(">>> SCHEDULE TRIGGER: Starting Motor!");
         setMotorState(true);
         publishTelemetry();
       }
-      // Match Stop Schedule
       else if (currentHour == SCHEDULE_STOP_HOUR && currentMin == SCHEDULE_STOP_MIN && motorState) {
         Serial.println(">>> SCHEDULE TRIGGER: Stopping Motor!");
         setMotorState(false);
@@ -399,6 +397,7 @@ void publishTelemetry() {
   long uptimeSec = millis() / 1000;
   int rssi = WiFi.RSSI();
   String ssidName = WiFi.SSID();
+  String ipAddress = WiFi.localIP().toString();
 
   float v1 = 230.0;
   float v2 = 230.0;
@@ -426,6 +425,7 @@ void publishTelemetry() {
   payload += "\"energykWh\":" + String(totalEnergykWh, 3) + ",";
   payload += "\"motorRunTimeSec\":" + String(totalRunTimeSec) + ",";
   payload += "\"time\":\"" + String(timeStr) + "\",";
+  payload += "\"ip\":\"" + ipAddress + "\",";
   payload += "\"rssi\":" + String(rssi) + ",";
   payload += "\"ssid\":\"" + ssidName + "\",";
   payload += "\"uptime\":" + String(uptimeSec) + ",";

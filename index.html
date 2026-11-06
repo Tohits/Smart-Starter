@@ -281,12 +281,15 @@
                 return;
             }
 
-            let targetIp = espLocalIp || prompt("Enter your ESP32's local IP address (e.g. 192.168.1.100):");
+            let targetIp = espLocalIp;
+            if (!targetIp) {
+                targetIp = prompt("Enter your ESP32's local IP address (e.g. 192.168.1.100):");
+            }
             if (!targetIp) return;
 
             progressContainer.classList.remove('hidden');
             progressBar.style.width = '10%';
-            otaStatusText.innerText = "Connecting to ESP32...";
+            otaStatusText.innerText = "Connecting to ESP32 at " + targetIp + "...";
 
             const formData = new FormData();
             formData.append('update', file);
@@ -317,7 +320,7 @@
             };
 
             xhr.onerror = () => {
-                alert("Update failed. Make sure your laptop/phone is connected to the same Wi-Fi router as the ESP32!");
+                alert(`Update failed. Make sure your laptop/phone is connected to the same Wi-Fi network as the ESP32 (IP: ${targetIp})!`);
                 progressContainer.classList.add('hidden');
             };
 
@@ -744,7 +747,11 @@
                         document.getElementById('lastSync').innerText = `Last Sync: ${data.time}`;
                     }
 
-                    // Connected Wi-Fi SSID Badge
+                    // Connected Wi-Fi SSID Badge & Local IP for zero-prompt OTA
+                    if (data.ip) {
+                        espLocalIp = data.ip;
+                    }
+
                     if (data.ssid) {
                         document.getElementById('wifiSsid').innerText = data.ssid;
                         document.getElementById('wifiSsidContainer').classList.remove('hidden');
@@ -781,7 +788,7 @@
                         } else {
                             dryBtn.className = isDark
                                 ? "bg-slate-700 hover:bg-slate-600 text-slate-300 border border-slate-600 font-bold px-2 py-0.5 rounded-lg text-[9px] shadow transition whitespace-nowrap"
-                                : "bg-slate-200 hover:bg-slate-300 text-slate-800 border border-slate-300 font-bold px-2 py-0.5 rounded-lg text-[9px] shadow-sm transition whitespace-nowrap";
+                                : "bg-slate-200 hover:bg-slate-300 text-slate-800 border border-slate-300 font-bold px-2 py-0.5 rounded-lg text-[9px] shadow transition whitespace-nowrap";
                             dryBtn.innerText = "Disabled ⚪";
                         }
                     }
