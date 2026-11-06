@@ -198,26 +198,36 @@
 
     </main>
 
-    <!-- OTA Firmware Update Modal -->
+    <!-- OTA Firmware Update Modal with Direct Storage File Picker -->
     <div id="otaModal" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
         <div class="bg-slate-800 border border-slate-700 p-6 rounded-2xl max-w-md w-full shadow-2xl relative text-slate-100">
             <button onclick="closeOtaModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white font-bold text-lg">✕</button>
             <h3 class="text-lg font-bold flex items-center gap-2 mb-2 text-blue-400">
-                📡 Web OTA Firmware Update
+                📡 Direct Wireless OTA Firmware Update
             </h3>
             <p class="text-xs text-slate-300 mb-4 leading-relaxed">
-                To update your ESP32 wirelessly over local Wi-Fi, open the local update portal in your browser while connected to the same Wi-Fi router:
+                Browse and select your compiled <code class="bg-slate-900 px-1 py-0.5 rounded text-blue-300">.bin</code> firmware file from your phone/laptop storage:
             </p>
-            <div class="bg-slate-900 border border-slate-700 p-3 rounded-lg text-center font-mono text-xs text-emerald-400 mb-4 select-all">
-                <span id="otaUrlText">http://&lt;ESP32_IP&gt;/update</span>
+
+            <!-- Direct Local Storage File Picker -->
+            <div class="bg-slate-900 border border-slate-700 p-4 rounded-xl mb-4 space-y-3">
+                <input type="file" id="otaFileInput" accept=".bin" class="block w-full text-xs text-slate-400 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-500 cursor-pointer">
+
+                <!-- Progress Bar -->
+                <div id="otaProgressContainer" class="hidden">
+                    <div class="w-full bg-slate-700 rounded-full h-2.5 mb-1">
+                        <div id="otaProgressBar" class="bg-blue-500 h-2.5 rounded-full transition-all duration-300" style="width: 0%"></div>
+                    </div>
+                    <p id="otaStatusText" class="text-[10px] text-blue-300 text-center font-medium">Uploading firmware...</p>
+                </div>
             </div>
-            <div class="text-[11px] text-slate-400 space-y-1.5 mb-5">
-                <p>1. Open the URL above in your browser.</p>
-                <p>2. Select your compiled <code class="bg-slate-900 px-1 py-0.5 rounded text-blue-300">.bin</code> file.</p>
-                <p>3. Click <strong>Update</strong> to flash wirelessly in seconds!</p>
-            </div>
-            <button onclick="closeOtaModal()" class="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 rounded-xl text-xs transition">
-                Close Modal
+
+            <button onclick="uploadFirmwareBinary()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2.5 rounded-xl text-xs transition shadow-lg mb-2 flex items-center justify-center gap-1.5">
+                ⚡ Upload & Flash Firmware
+            </button>
+
+            <button onclick="closeOtaModal()" class="w-full bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold py-2 rounded-xl text-xs transition">
+                Cancel
             </button>
         </div>
     </div>
@@ -227,13 +237,14 @@
         Smart Starter Global Cloud Dashboard &bull; Powered by HiveMQ Cloud & Vercel
     </footer>
 
-    <!-- Global Cloud MQTT WebSockets Client & OTA Modal Handlers -->
+    <!-- Global Cloud MQTT WebSockets Client & Direct OTA File Upload -->
     <script>
         let currentAutoStart = false;
         let currentDryRun = true;
         let lastReceivedStatus = 'OFF';
         let lastNotifiedStatus = '';
         let commandTimeoutId = null;
+        let espLocalIp = '';
 
         function openOtaModal() {
             document.getElementById('otaModal').classList.remove('hidden');
@@ -241,6 +252,66 @@
 
         function closeOtaModal() {
             document.getElementById('otaModal').classList.add('hidden');
+        }
+
+        async function uploadFirmwareBinary() {
+            const fileInput = document.getElementById('otaFileInput');
+            const progressContainer = document.getElementById('otaProgressContainer');
+            const progressBar = document.getElementById('otaProgressBar');
+            const otaStatusText = document.getElementById('otaStatusText');
+
+            if (!fileInput.files || fileInput.files.length === 0) {
+                alert("Please select a compiled .bin firmware file from your storage first!");
+                return;
+            }
+
+            const file = fileInput.files[0];
+            if (!file.name.endsWith('.bin')) {
+                alert("Invalid file type! Please select a .bin compiled binary file.");
+                return;
+            }
+
+            let targetIp = espLocalIp || prompt("Enter your ESP32's local IP address (e.g. 192.168.1.100):");
+            if (!targetIp) return;
+
+            progressContainer.classList.remove('hidden');
+            progressBar.style.width = '10%';
+            otaStatusText.innerText = "Connecting to ESP32...";
+
+            const formData = new FormData();
+            formData.append('update', file);
+
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', `http://${targetIp}/update`, true);
+
+            xhr.upload.onprogress = (e) => {
+                if (e.lengthComputable) {
+                    const percentComplete = Math.round((e.loaded / e.total) * 100);
+                    progressBar.style.width = `${percentComplete}%`;
+                    otaStatusText.innerText = `Flashing firmware: ${percentComplete}%`;
+                }
+            };
+
+            xhr.onload = () => {
+                if (xhr.status === 200) {
+                    progressBar.style.width = '100%';
+                    otaStatusText.innerText = "SUCCESS! Firmware updated. Rebooting ESP32...";
+                    setTimeout(() => {
+                        closeOtaModal();
+                        alert("Firmware update successful! The ESP32 is now rebooting with the new code.");
+                    }, 2000);
+                } else {
+                    alert(`Update failed (HTTP ${xhr.status}): ${xhr.responseText}`);
+                    progressContainer.classList.add('hidden');
+                }
+            };
+
+            xhr.onerror = () => {
+                alert("Update failed. Make sure your laptop/phone is connected to the same Wi-Fi router as the ESP32!");
+                progressContainer.classList.add('hidden');
+            };
+
+            xhr.send(formData);
         }
 
         // --- Smart Motor Health Diagnostic Calculator ---
@@ -395,7 +466,7 @@
                 html.classList.remove('dark');
                 body.className = "bg-slate-100 text-slate-900 min-h-screen flex flex-col justify-between transition-colors duration-300";
                 header.className = "bg-white border-b border-slate-200 py-2.5 px-4 shadow-sm transition-colors duration-300";
-                footer.className = "bg-white border-t border-slate-200 py-2 px-4 text-center text-[10px] text-slate-600 font-semibold transition-colors duration-300";
+                footer.className = "bg-white border-t border-slate-200 py-3 px-6 text-center text-xs text-slate-600 font-semibold transition-colors duration-300";
                 themeSelect.className = "bg-slate-100 text-slate-900 text-[11px] px-2 py-1 rounded-lg border border-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer shadow-sm font-semibold";
                 hardwareBar.className = "bg-white border border-slate-200 p-2.5 rounded-xl shadow-sm flex items-center justify-between gap-2 transition-colors duration-300";
                 autoStartCard.className = "bg-white border border-slate-200 p-2.5 rounded-xl shadow-sm flex items-center justify-between gap-2 transition-colors duration-300";
@@ -660,7 +731,7 @@
                         document.getElementById('lastSync').innerText = `Last Sync: ${data.time}`;
                     }
 
-                    // Connected Wi-Fi SSID Badge & OTA URL
+                    // Connected Wi-Fi SSID Badge & Local IP
                     if (data.ssid) {
                         document.getElementById('wifiSsid').innerText = data.ssid;
                         document.getElementById('wifiSsidContainer').classList.remove('hidden');
