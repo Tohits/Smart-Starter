@@ -64,6 +64,37 @@
             <p id="lastSync" class="text-slate-400 text-[10px] mt-0.5 font-medium">Last Sync: Never</p>
         </div>
 
+        <!-- Smart Motor Health Dashboard Panel -->
+        <div id="healthPanel" class="bg-slate-800 border border-slate-700 p-3 rounded-xl shadow transition-colors duration-300">
+            <div class="flex items-center justify-between gap-2 mb-2">
+                <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                    🏥 Smart Motor Health Dashboard
+                </h3>
+                <span id="healthScoreBadge" class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                    100% EXCELLENT
+                </span>
+            </div>
+            <!-- Health Metrics Grid -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
+                <div class="bg-slate-900/60 p-2 rounded-lg border border-slate-700/60">
+                    <p class="text-slate-400 text-[10px] font-medium">Phase Balance</p>
+                    <p id="phaseBalanceVal" class="text-sm font-bold text-emerald-400 mt-0.5">100% Balanced</p>
+                </div>
+                <div class="bg-slate-900/60 p-2 rounded-lg border border-slate-700/60">
+                    <p class="text-slate-400 text-[10px] font-medium">Thermal Stress</p>
+                    <p id="thermalStressVal" class="text-sm font-bold text-emerald-400 mt-0.5">Normal (35°C)</p>
+                </div>
+                <div class="bg-slate-900/60 p-2 rounded-lg border border-slate-700/60">
+                    <p class="text-slate-400 text-[10px] font-medium">Overload Risk</p>
+                    <p id="overloadRiskVal" class="text-sm font-bold text-emerald-400 mt-0.5">Low (0%)</p>
+                </div>
+                <div class="bg-slate-900/60 p-2 rounded-lg border border-slate-700/60">
+                    <p class="text-slate-400 text-[10px] font-medium">Diagnostic Note</p>
+                    <p id="healthInsightVal" class="text-[10px] font-semibold text-slate-300 truncate mt-0.5">System Healthy</p>
+                </div>
+            </div>
+        </div>
+
         <!-- Real-Time Metrics Row: Temperature, Energy (kWh), Running Hours -->
         <div class="grid grid-cols-3 gap-2 text-center text-xs">
             <!-- Motor Temperature -->
@@ -169,12 +200,92 @@
         Smart Starter Global Cloud Dashboard &bull; Powered by HiveMQ Cloud & Vercel
     </footer>
 
-    <!-- Global Cloud MQTT WebSockets Client & Mobile Notifications -->
+    <!-- Global Cloud MQTT WebSockets Client & Smart Motor Health Dashboard -->
     <script>
         let currentAutoStart = false;
         let currentDryRun = true;
         let lastReceivedStatus = 'OFF';
         let lastNotifiedStatus = '';
+
+        // --- Smart Motor Health Diagnostic Calculator ---
+        function evaluateMotorHealth(i1, i2, i3, tempC, status) {
+            let score = 100;
+            let phaseBalanceText = "100% Balanced";
+            let thermalText = `Normal (${tempC}°C)`;
+            let overloadRiskText = "Low (0%)";
+            let insight = "System Optimal & Healthy";
+
+            // Thermal Stress
+            if (tempC > 65) {
+                score -= 30;
+                thermalText = `HIGH (${tempC}°C)`;
+                insight = "High motor body temperature!";
+            } else if (tempC > 50) {
+                score -= 10;
+                thermalText = `Warm (${tempC}°C)`;
+            }
+
+            // Phase Current Imbalance Check
+            const maxI = Math.max(i1, i2, i3);
+            const minI = Math.min(i1, i2, i3);
+            const avgI = (i1 + i2 + i3) / 3;
+
+            if (avgI > 0.5) {
+                const diff = maxI - minI;
+                const imbalancePct = Math.round((diff / avgI) * 100);
+                phaseBalanceText = `${imbalancePct}% Imbalance`;
+
+                if (imbalancePct > 25) {
+                    score -= 35;
+                    insight = "Severe phase current imbalance detected!";
+                } else if (imbalancePct > 15) {
+                    score -= 15;
+                    insight = "Moderate phase imbalance.";
+                }
+
+                // Overload Risk Calculation (5 HP ~ 8.5A FLC)
+                const ratedFLC = 8.5;
+                const riskPct = Math.min(100, Math.round((maxI / ratedFLC) * 100));
+                overloadRiskText = `${riskPct}% FLC`;
+                if (riskPct > 90) {
+                    score -= 25;
+                    insight = "Motor drawing near max load current!";
+                }
+            } else {
+                phaseBalanceText = "Idle";
+                overloadRiskText = "0% (Idle)";
+            }
+
+            if (status.startsWith('TRIPPED')) {
+                score = 0;
+                insight = "FAULT TRIP: " + status;
+            }
+
+            score = Math.max(0, Math.min(100, score));
+
+            // UI Elements
+            const badge = document.getElementById('healthScoreBadge');
+            const balanceEl = document.getElementById('phaseBalanceVal');
+            const thermalEl = document.getElementById('thermalStressVal');
+            const overloadEl = document.getElementById('overloadRiskVal');
+            const insightEl = document.getElementById('healthInsightVal');
+
+            balanceEl.innerText = phaseBalanceText;
+            thermalEl.innerText = thermalText;
+            overloadEl.innerText = overloadRiskText;
+            insightEl.innerText = insight;
+
+            if (score >= 90) {
+                badge.className = "px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30";
+                badge.innerText = `${score}% EXCELLENT`;
+            } else if (score >= 60) {
+                badge.className = "px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30";
+                badge.innerText = `${score}% WARNING`;
+            } else {
+                badge.className = "px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30";
+                badge.innerText = `${score}% CRITICAL`;
+            }
+        }
 
         // --- Mobile Native Notifications ---
         function requestNotificationPermission() {
@@ -216,6 +327,7 @@
             const hardwareBar = document.getElementById('hardwareBar');
             const autoStartCard = document.getElementById('autoStartCard');
             const dryRunCard = document.getElementById('dryRunCard');
+            const healthPanel = document.getElementById('healthPanel');
             const telemetryHeading = document.getElementById('telemetryHeading');
             const espLabel = document.getElementById('espLabel');
             const uptimeLabel = document.getElementById('uptimeLabel');
@@ -235,6 +347,7 @@
                 hardwareBar.className = "bg-slate-800 border border-slate-700 p-2.5 rounded-xl shadow flex items-center justify-between gap-2 transition-colors duration-300";
                 autoStartCard.className = "bg-slate-800 border border-slate-700 p-2.5 rounded-xl shadow flex items-center justify-between gap-2 transition-colors duration-300";
                 dryRunCard.className = "bg-slate-800 border border-slate-700 p-2.5 rounded-xl shadow flex items-center justify-between gap-2 transition-colors duration-300";
+                healthPanel.className = "bg-slate-800 border border-slate-700 p-3 rounded-xl shadow transition-colors duration-300";
                 telemetryHeading.className = "text-xs font-bold mb-1.5 text-slate-300 uppercase tracking-wider";
                 espLabel.className = "text-slate-400 font-semibold text-[11px]";
                 uptimeLabel.className = "text-[10px] text-slate-300";
@@ -255,6 +368,7 @@
                 hardwareBar.className = "bg-white border border-slate-200 p-2.5 rounded-xl shadow-sm flex items-center justify-between gap-2 transition-colors duration-300";
                 autoStartCard.className = "bg-white border border-slate-200 p-2.5 rounded-xl shadow-sm flex items-center justify-between gap-2 transition-colors duration-300";
                 dryRunCard.className = "bg-white border border-slate-200 p-2.5 rounded-xl shadow-sm flex items-center justify-between gap-2 transition-colors duration-300";
+                healthPanel.className = "bg-white border border-slate-200 p-3 rounded-xl shadow-sm transition-colors duration-300";
                 telemetryHeading.className = "text-xs font-bold mb-1.5 text-slate-800 uppercase tracking-wider";
                 espLabel.className = "text-slate-700 font-semibold text-[11px]";
                 uptimeLabel.className = "text-[10px] text-slate-700 font-medium";
@@ -462,6 +576,13 @@
                     const data = JSON.parse(payload.toString());
                     const statusText = document.getElementById('statusText');
 
+                    // Evaluate Motor Health Score & Diagnostics
+                    const i1 = data.phase1 || 0.0;
+                    const i2 = data.phase2 || 0.0;
+                    const i3 = data.phase3 || 0.0;
+                    const tempC = data.temperature || 35.0;
+                    evaluateMotorHealth(i1, i2, i3, tempC, data.status);
+
                     // Trigger Native Mobile System Notification only on status changes or faults
                     if (data.status !== lastNotifiedStatus) {
                         lastNotifiedStatus = data.status;
@@ -479,9 +600,9 @@
                     updateStatusCardStyle(data.status);
 
                     // Update Amps
-                    document.getElementById('phase1Val').innerHTML = `${data.phase1 || 0.0} <span class="unitLabel text-xs font-normal">A</span>`;
-                    document.getElementById('phase2Val').innerHTML = `${data.phase2 || 0.0} <span class="unitLabel text-xs font-normal">A</span>`;
-                    document.getElementById('phase3Val').innerHTML = `${data.phase3 || 0.0} <span class="unitLabel text-xs font-normal">A</span>`;
+                    document.getElementById('phase1Val').innerHTML = `${i1} <span class="unitLabel text-xs font-normal">A</span>`;
+                    document.getElementById('phase2Val').innerHTML = `${i2} <span class="unitLabel text-xs font-normal">A</span>`;
+                    document.getElementById('phase3Val').innerHTML = `${i3} <span class="unitLabel text-xs font-normal">A</span>`;
 
                     // Update Voltages
                     if (data.v1 !== undefined) document.getElementById('v1Val').innerText = `${data.v1} V`;
