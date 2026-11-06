@@ -1,22 +1,27 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" id="htmlRoot">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>5 HP Smart Motor Starter Dashboard (Cloud)</title>
     <!-- PWA Manifest & Theme -->
     <link rel="manifest" href="/manifest.json">
-    <meta name="theme-color" content="#1e293b">
+    <meta name="theme-color" id="themeColorMeta" content="#1e293b">
     <link rel="icon" href="/icon.svg" type="image/svg+xml">
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- MQTT.js for Global Cloud WebSockets -->
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+        }
+    </script>
 </head>
-<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col justify-between">
+<body class="bg-slate-900 text-slate-100 dark:bg-slate-900 dark:text-slate-100 min-h-screen flex flex-col justify-between transition-colors duration-300">
 
     <!-- Header -->
-    <header class="bg-slate-800 border-b border-slate-700 py-4 px-6 shadow-md">
+    <header class="bg-slate-800 dark:bg-slate-800 border-b border-slate-700 dark:border-slate-700 py-4 px-6 shadow-md transition-colors duration-300">
         <div class="max-w-4xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
             <div class="flex items-center gap-3 flex-wrap">
                 <h1 class="text-2xl font-bold flex items-center gap-2">
@@ -28,7 +33,14 @@
                     <span id="connText">Connecting to Cloud...</span>
                 </span>
             </div>
-            <div class="flex items-center gap-3">
+            <div class="flex items-center gap-3 flex-wrap">
+                <!-- Theme Mode Selector (Auto / Dark / Light) -->
+                <select id="themeSelect" aria-label="Theme Selector" onchange="changeTheme(this.value)" class="bg-slate-700 dark:bg-slate-700 text-slate-100 text-xs px-2.5 py-1.5 rounded-lg border border-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer">
+                    <option value="auto">🌗 Auto (Day/Night)</option>
+                    <option value="dark">🌙 Dark Mode</option>
+                    <option value="light">☀️ Light Mode</option>
+                </select>
+
                 <!-- Compact Install App Button (Hidden by default) -->
                 <button id="installBtn" class="hidden bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition flex items-center gap-1.5 shadow">
                     <span>📱</span> Install App
@@ -44,14 +56,14 @@
     <main class="max-w-4xl mx-auto p-6 w-full flex-grow flex flex-col gap-6 justify-center">
 
         <!-- Status Card -->
-        <div id="statusCard" class="p-6 rounded-2xl border border-slate-700 bg-slate-800 shadow-lg text-center transition-all duration-200">
+        <div id="statusCard" class="p-6 rounded-2xl border border-slate-700 bg-slate-800 dark:bg-slate-800 shadow-lg text-center transition-all duration-200">
             <p class="text-slate-400 text-sm uppercase tracking-wider mb-1">Motor Status</p>
             <h2 id="statusText" class="text-3xl font-extrabold tracking-wide">WAITING FOR DATA...</h2>
             <p id="lastSync" class="text-slate-400 text-xs mt-2">Last Sync: Never</p>
         </div>
 
         <!-- ESP32 Hardware Status Bar with Reboot Button -->
-        <div class="bg-slate-800 border border-slate-700 p-4 rounded-xl shadow flex flex-wrap items-center justify-between gap-4 text-sm">
+        <div id="hardwareBar" class="bg-slate-800 border border-slate-700 p-4 rounded-xl shadow flex flex-wrap items-center justify-between gap-4 text-sm transition-colors duration-300">
             <div class="flex items-center gap-2 flex-wrap">
                 <span class="text-slate-400">ESP32 Hardware:</span>
                 <span id="espHealthBadge" class="px-2 py-0.5 rounded-md text-xs font-bold bg-amber-500/20 text-amber-400">Offline</span>
@@ -73,17 +85,17 @@
             <h3 class="text-lg font-semibold mb-3 text-slate-300">3-Phase Current Telemetry</h3>
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <!-- Phase 1 -->
-                <div class="bg-slate-800 border border-slate-700 p-5 rounded-xl shadow text-center">
+                <div class="telemetryCard bg-slate-800 border border-slate-700 p-5 rounded-xl shadow text-center transition-colors duration-300">
                     <p class="text-slate-400 text-sm font-medium">Phase 1 (R)</p>
                     <p id="phase1Val" class="text-3xl font-bold text-blue-400 mt-2">0.0 <span class="text-lg font-normal text-slate-400">A</span></p>
                 </div>
                 <!-- Phase 2 -->
-                <div class="bg-slate-800 border border-slate-700 p-5 rounded-xl shadow text-center">
+                <div class="telemetryCard bg-slate-800 border border-slate-700 p-5 rounded-xl shadow text-center transition-colors duration-300">
                     <p class="text-slate-400 text-sm font-medium">Phase 2 (Y)</p>
                     <p id="phase2Val" class="text-3xl font-bold text-blue-400 mt-2">0.0 <span class="text-lg font-normal text-slate-400">A</span></p>
                 </div>
                 <!-- Phase 3 -->
-                <div class="bg-slate-800 border border-slate-700 p-5 rounded-xl shadow text-center">
+                <div class="telemetryCard bg-slate-800 border border-slate-700 p-5 rounded-xl shadow text-center transition-colors duration-300">
                     <p class="text-slate-400 text-sm font-medium">Phase 3 (B)</p>
                     <p id="phase3Val" class="text-3xl font-bold text-blue-400 mt-2">0.0 <span class="text-lg font-normal text-slate-400">A</span></p>
                 </div>
@@ -103,12 +115,72 @@
     </main>
 
     <!-- Footer -->
-    <footer class="bg-slate-800 border-t border-slate-700 py-3 px-6 text-center text-xs text-slate-500">
+    <footer class="bg-slate-800 border-t border-slate-700 py-3 px-6 text-center text-xs text-slate-500 transition-colors duration-300">
         Smart Starter Global Cloud Dashboard &bull; Powered by HiveMQ Cloud & Vercel
     </footer>
 
-    <!-- Global Cloud MQTT WebSockets Client & ESP Status Monitor -->
+    <!-- Global Cloud MQTT WebSockets Client & Theme Switcher -->
     <script>
+        // --- Theme Switcher (Auto Day/Night & Manual) ---
+        function applyTheme(isDark) {
+            const html = document.getElementById('htmlRoot');
+            const themeColor = document.getElementById('themeColorMeta');
+            const body = document.body;
+            const header = document.querySelector('header');
+            const footer = document.querySelector('footer');
+            const hardwareBar = document.getElementById('hardwareBar');
+            const telemetryCards = document.querySelectorAll('.telemetryCard');
+
+            if (isDark) {
+                html.classList.add('dark');
+                body.className = "bg-slate-900 text-slate-100 min-h-screen flex flex-col justify-between transition-colors duration-300";
+                header.className = "bg-slate-800 border-b border-slate-700 py-4 px-6 shadow-md transition-colors duration-300";
+                footer.className = "bg-slate-800 border-t border-slate-700 py-3 px-6 text-center text-xs text-slate-500 transition-colors duration-300";
+                hardwareBar.className = "bg-slate-800 border border-slate-700 p-4 rounded-xl shadow flex flex-wrap items-center justify-between gap-4 text-sm transition-colors duration-300";
+                telemetryCards.forEach(c => c.className = "telemetryCard bg-slate-800 border border-slate-700 p-5 rounded-xl shadow text-center transition-colors duration-300");
+                themeColor.setAttribute('content', '#1e293b');
+            } else {
+                html.classList.remove('dark');
+                body.className = "bg-slate-100 text-slate-900 min-h-screen flex flex-col justify-between transition-colors duration-300";
+                header.className = "bg-white border-b border-slate-200 py-4 px-6 shadow-sm transition-colors duration-300";
+                footer.className = "bg-white border-t border-slate-200 py-3 px-6 text-center text-xs text-slate-600 transition-colors duration-300";
+                hardwareBar.className = "bg-white border border-slate-200 p-4 rounded-xl shadow-sm flex flex-wrap items-center justify-between gap-4 text-sm transition-colors duration-300";
+                telemetryCards.forEach(c => c.className = "telemetryCard bg-white border border-slate-200 p-5 rounded-xl shadow-sm text-center transition-colors duration-300");
+                themeColor.setAttribute('content', '#ffffff');
+            }
+        }
+
+        function checkAutoDayNight() {
+            const currentHour = new Date().getHours();
+            // Day mode between 6:00 AM (6) and 6:00 PM (18), Night mode otherwise
+            const isNight = currentHour < 6 || currentHour >= 18;
+            applyTheme(isNight);
+        }
+
+        function changeTheme(mode) {
+            localStorage.setItem('themeMode', mode);
+            if (mode === 'dark') {
+                applyTheme(true);
+            } else if (mode === 'light') {
+                applyTheme(false);
+            } else { // 'auto'
+                checkAutoDayNight();
+            }
+        }
+
+        // Initialize Theme Mode on page load
+        const savedThemeMode = localStorage.getItem('themeMode') || 'auto';
+        document.getElementById('themeSelect').value = savedThemeMode;
+        changeTheme(savedThemeMode);
+
+        // Check Auto Day/Night mode every 5 minutes if in auto mode
+        setInterval(() => {
+            if (document.getElementById('themeSelect').value === 'auto') {
+                checkAutoDayNight();
+            }
+        }, 300000);
+
+        // --- PWA Service Worker & Install Prompt ---
         let deferredPrompt;
         let lastMessageTime = 0;
         const installBtn = document.getElementById('installBtn');
