@@ -2,7 +2,8 @@
  * Complete Industrial 5 HP 3-Phase Smart Motor Starter Firmware for ESP32S
  * Features:
  * - Captive Portal (WiFiManager) for easy Wi-Fi setup
- * - Continuous Auto-Start with Pre-Start Current Safety Inspection
+ * - Intelligent Manual & Auto-Start Pre-Start Current Safety Inspection
+ * - Single Phasing / Phase Loss Protection (Trips if any phase fails during operation)
  * - Dynamic Time Scheduler (Configurable Start/Stop Times via MQTT Dashboard)
  * - Intelligent Dry-Run Protection with 5-Second Startup Grace Period
  * - 3-Phase Current & Voltage Monitoring with Zero-Noise Clamping
@@ -166,10 +167,12 @@ void callback(char* topic, byte* payload, unsigned int length) {
 
   if (String(topic) == mqtt_topic_control) {
     if (upperMsg == "ON" || upperMsg == "START" || upperMsg == "1") {
-      Serial.println(">>> Command matched: Turning MOTOR ON");
+      Serial.println(">>> START Button Pressed: Inspecting pre-start current safety...");
       if (checkCurrentSafetyBeforeStart()) {
+        Serial.println(">>> Pre-start Inspection PASSED -> Turning MOTOR ON");
         setMotorState(true);
       } else {
+        Serial.println(">>> Pre-start Inspection FAILED -> Motor Start Refused!");
         tripMotor("TRIPPED_FAULTY_CURRENT");
       }
     } else if (upperMsg == "OFF" || upperMsg == "STOP" || upperMsg == "0") {
@@ -421,6 +424,11 @@ void loop() {
         Serial.println(">>> TRIP: Dry Run detected! Pump running empty. Shutting down motor immediately.");
         tripMotor("TRIPPED_DRY_RUN");
       }
+    }
+    // 4. Single Phasing / Phase Failure Protection (Triggers if any phase fails while motor is running)
+    else if ((i1 > 2.0 && (i2 < 0.5 || i3 < 0.5)) || (i2 > 2.0 && (i1 < 0.5 || i3 < 0.5)) || (i3 > 2.0 && (i1 < 0.5 || i2 < 0.5))) {
+      Serial.println(">>> TRIP: Single Phasing / Phase Loss detected! Shutting down motor immediately.");
+      tripMotor("TRIPPED_PHASE_FAILURE");
     }
   }
 }
