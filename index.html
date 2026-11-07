@@ -114,16 +114,17 @@
             </div>
         </div>
 
-        <!-- Hardware Status Row (Spacious & Clean, no text overflow!) -->
+        <!-- Hardware Status Row (Always Prominently Displays Live IP!) -->
         <div id="hardwareBar" class="bg-slate-800 border border-slate-700 px-2.5 py-1.5 rounded-xl shadow flex items-center justify-between gap-2 text-xs flex-wrap transition-colors duration-300">
             <div class="flex items-center gap-1.5 flex-wrap">
                 <span id="espLabel" class="text-slate-400 font-semibold text-[10px]">ESP32:</span>
                 <span id="espHealthBadge" class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-400">Offline</span>
                 <div id="wifiSsidContainer" class="hidden font-semibold text-emerald-400 bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-500/30 text-[9px]">
-                    📶 <span id="wifiSsid" class="text-white font-bold">--</span>
+                    📶 <span id="wifiSsid" class="text-white font-bold">1+10R</span>
                 </div>
-                <div id="ipContainer" class="hidden font-mono font-bold text-blue-300 bg-blue-950/40 px-2 py-0.5 rounded border border-blue-500/30 text-[9px]">
-                    🌐 <span id="espIpBadge">--</span>
+                <!-- Always Prominently Displayed Local IP Badge -->
+                <div id="ipContainer" class="font-mono font-bold text-blue-300 bg-blue-950/40 px-2 py-0.5 rounded border border-blue-500/30 text-[9px]">
+                    🌐 IP: <span id="espIpBadge">10.146.68.77</span>
                 </div>
             </div>
             <div class="flex items-center gap-1.5">
@@ -137,40 +138,43 @@
             </div>
         </div>
 
-        <!-- Toggles & Time Scheduler Controls Row (Stacked 2-Row Time Scheduler - ZERO Overflow!) -->
+        <!-- Toggles & Time Scheduler Controls Row (Modern Toggle Switches) -->
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
-            <!-- Auto-Start Toggle -->
-            <div id="autoStartCard" class="bg-slate-800 border border-slate-700 px-2.5 py-1.5 rounded-xl shadow flex items-center justify-between gap-2 transition-colors duration-300">
+            <!-- Auto-Start Toggle Switch -->
+            <div id="autoStartCard" class="bg-slate-800 border border-slate-700 px-3 py-2 rounded-xl shadow flex items-center justify-between gap-2 transition-colors duration-300">
                 <div class="flex items-center gap-1.5">
                     <span class="text-sm">⚡</span>
                     <h4 id="autoStartTitle" class="font-bold text-white text-[10px]">Auto Start</h4>
                 </div>
-                <button id="autoStartBtn" onclick="toggleAutoStart()" class="bg-slate-700 hover:bg-slate-600 text-slate-300 border border-slate-600 font-bold px-2.5 py-0.5 rounded-lg text-[9px] shadow transition whitespace-nowrap">
-                    Disabled ⚪
-                </button>
+                <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" id="autoStartToggle" onchange="toggleAutoStart()" aria-label="Auto Start Toggle" class="sr-only peer">
+                    <div class="w-8 h-4.5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-emerald-500"></div>
+                </label>
             </div>
 
-            <!-- Dry-Run Protection Toggle -->
-            <div id="dryRunCard" class="bg-slate-800 border border-slate-700 px-2.5 py-1.5 rounded-xl shadow flex items-center justify-between gap-2 transition-colors duration-300">
+            <!-- Dry-Run Protection Toggle Switch -->
+            <div id="dryRunCard" class="bg-slate-800 border border-slate-700 px-3 py-2 rounded-xl shadow flex items-center justify-between gap-2 transition-colors duration-300">
                 <div class="flex items-center gap-1.5">
                     <span class="text-sm">💧</span>
                     <h4 id="dryRunTitle" class="font-bold text-white text-[10px]">Dry-Run</h4>
                 </div>
-                <button id="dryRunBtn" onclick="toggleDryRun()" class="bg-emerald-600 text-white font-bold px-2.5 py-0.5 rounded-lg text-[9px] shadow transition whitespace-nowrap">
-                    Active 🟢
-                </button>
+                <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" id="dryRunToggle" onchange="toggleDryRun()" aria-label="Dry-Run Protection Toggle" class="sr-only peer">
+                    <div class="w-8 h-4.5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-emerald-500"></div>
+                </label>
             </div>
 
-            <!-- Time Scheduler Controls (Stacked Layout: Title & Button on top, Time Inputs below - NO Overflow!) -->
-            <div id="scheduleCard" class="bg-slate-800 border border-slate-700 px-2.5 py-1 rounded-xl shadow flex flex-col justify-between gap-1 transition-colors duration-300">
+            <!-- Time Scheduler Controls -->
+            <div id="scheduleCard" class="bg-slate-800 border border-slate-700 px-3 py-1.5 rounded-xl shadow flex flex-col justify-between gap-1 transition-colors duration-300">
                 <div class="flex items-center justify-between w-full">
                     <div class="flex items-center gap-1">
                         <span class="text-xs">⏰</span>
                         <h4 class="font-bold text-white text-[10px]">Schedule</h4>
                     </div>
-                    <button id="schedBtn" onclick="toggleSchedule()" class="bg-slate-700 hover:bg-slate-600 text-slate-300 border border-slate-600 font-bold px-2 py-0.5 rounded-lg text-[9px] shadow transition whitespace-nowrap">
-                        Disabled ⚪
-                    </button>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="schedToggle" onchange="toggleSchedule()" aria-label="Schedule Toggle" class="sr-only peer">
+                        <div class="w-8 h-4.5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-emerald-500"></div>
+                    </label>
                 </div>
                 <div class="flex items-center justify-center gap-1 w-full">
                     <input type="time" id="schedStartTime" value="06:30" aria-label="Schedule Start Time" class="bg-slate-900 border border-slate-700 text-white text-[9px] px-1 py-0.5 rounded font-mono text-center flex-1">
@@ -409,9 +413,9 @@
                 footer.className = "bg-slate-800 border-t border-slate-700 py-1 px-4 text-center text-[8px] text-slate-500 font-medium transition-colors duration-300";
                 themeSelect.className = "bg-slate-700 text-slate-100 text-[9px] px-2 py-0.5 rounded-lg border border-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer shadow-sm";
                 hardwareBar.className = "bg-slate-800 border border-slate-700 px-2.5 py-1.5 rounded-xl shadow flex items-center justify-between gap-2 text-xs flex-wrap transition-colors duration-300";
-                autoStartCard.className = "bg-slate-800 border border-slate-700 px-2.5 py-1.5 rounded-xl shadow flex items-center justify-between gap-2 transition-colors duration-300";
-                dryRunCard.className = "bg-slate-800 border border-slate-700 px-2.5 py-1.5 rounded-xl shadow flex items-center justify-between gap-2 transition-colors duration-300";
-                scheduleCard.className = "bg-slate-800 border border-slate-700 px-2.5 py-1 rounded-xl shadow flex flex-col justify-between gap-1 transition-colors duration-300";
+                autoStartCard.className = "bg-slate-800 border border-slate-700 px-3 py-2 rounded-xl shadow flex items-center justify-between gap-2 transition-colors duration-300";
+                dryRunCard.className = "bg-slate-800 border border-slate-700 px-3 py-2 rounded-xl shadow flex items-center justify-between gap-2 transition-colors duration-300";
+                scheduleCard.className = "bg-slate-800 border border-slate-700 px-3 py-1.5 rounded-xl shadow flex flex-col justify-between gap-1 transition-colors duration-300";
                 healthPanel.className = "bg-slate-800 border border-slate-700 p-2 rounded-xl shadow transition-colors duration-300";
                 telemetryHeading.className = "text-[9px] font-bold mb-1 text-slate-300 uppercase tracking-wider";
                 espLabel.className = "text-slate-400 font-semibold text-[10px]";
@@ -431,9 +435,9 @@
                 footer.className = "bg-white border-t border-slate-200 py-1 px-4 text-center text-[8px] text-slate-600 font-semibold transition-colors duration-300";
                 themeSelect.className = "bg-slate-100 text-slate-900 text-[9px] px-2 py-0.5 rounded-lg border border-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer shadow-sm font-semibold";
                 hardwareBar.className = "bg-white border border-slate-200 px-2.5 py-1.5 rounded-xl shadow-sm flex items-center justify-between gap-2 text-xs flex-wrap transition-colors duration-300";
-                autoStartCard.className = "bg-white border border-slate-200 px-2.5 py-1.5 rounded-xl shadow-sm flex items-center justify-between gap-2 transition-colors duration-300";
-                dryRunCard.className = "bg-white border border-slate-200 px-2.5 py-1.5 rounded-xl shadow-sm flex items-center justify-between gap-2 transition-colors duration-300";
-                scheduleCard.className = "bg-white border border-slate-200 px-2.5 py-1 rounded-xl shadow-sm flex flex-col justify-between gap-1 transition-colors duration-300";
+                autoStartCard.className = "bg-white border border-slate-200 px-3 py-2 rounded-xl shadow-sm flex items-center justify-between gap-2 transition-colors duration-300";
+                dryRunCard.className = "bg-white border border-slate-200 px-3 py-2 rounded-xl shadow-sm flex items-center justify-between gap-2 transition-colors duration-300";
+                scheduleCard.className = "bg-white border border-slate-200 px-3 py-1.5 rounded-xl shadow-sm flex flex-col justify-between gap-1 transition-colors duration-300";
                 healthPanel.className = "bg-white border border-slate-200 p-2 rounded-xl shadow-sm transition-colors duration-300";
                 telemetryHeading.className = "text-[9px] font-bold mb-1 text-slate-800 uppercase tracking-wider";
                 espLabel.className = "text-slate-700 font-semibold text-[10px]";
@@ -715,58 +719,28 @@
                         document.getElementById('wifiSsidContainer').classList.add('hidden');
                     }
 
-                    // Auto-Start Status Toggle
+                    // Auto-Start Status Toggle Switch
                     if (data.autoStartEnabled !== undefined) {
                         currentAutoStart = data.autoStartEnabled;
-                        const autoBtn = document.getElementById('autoStartBtn');
-                        const isDark = document.getElementById('htmlRoot').classList.contains('dark');
-
-                        if (currentAutoStart) {
-                            autoBtn.className = "bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-2 py-0.5 rounded-lg text-[9px] shadow transition whitespace-nowrap";
-                            autoBtn.innerText = "Enabled 🟢";
-                        } else {
-                            autoBtn.className = isDark
-                                ? "bg-slate-700 hover:bg-slate-600 text-slate-300 border border-slate-600 font-bold px-2 py-0.5 rounded-lg text-[9px] shadow transition whitespace-nowrap"
-                                : "bg-slate-200 hover:bg-slate-300 text-slate-800 border border-slate-300 font-bold px-2 py-0.5 rounded-lg text-[9px] shadow-sm transition whitespace-nowrap";
-                            autoBtn.innerText = "Disabled ⚪";
-                        }
+                        const autoToggle = document.getElementById('autoStartToggle');
+                        if (autoToggle) autoToggle.checked = currentAutoStart;
                     }
 
-                    // Dry-Run Protection Toggle Status
+                    // Dry-Run Protection Toggle Switch
                     if (data.dryRunProtectionEnabled !== undefined) {
                         currentDryRun = data.dryRunProtectionEnabled;
-                        const dryBtn = document.getElementById('dryRunBtn');
-                        const isDark = document.getElementById('htmlRoot').classList.contains('dark');
-
-                        if (currentDryRun) {
-                            dryBtn.className = "bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-2 py-0.5 rounded-lg text-[9px] shadow transition whitespace-nowrap";
-                            dryBtn.innerText = "Active 🟢";
-                        } else {
-                            dryBtn.className = isDark
-                                ? "bg-slate-700 hover:bg-slate-600 text-slate-300 border border-slate-600 font-bold px-2 py-0.5 rounded-lg text-[9px] shadow transition whitespace-nowrap"
-                                : "bg-slate-200 hover:bg-slate-300 text-slate-800 border border-slate-300 font-bold px-2 py-0.5 rounded-lg text-[9px] shadow-sm transition whitespace-nowrap";
-                            dryBtn.innerText = "Disabled ⚪";
-                        }
+                        const dryToggle = document.getElementById('dryRunToggle');
+                        if (dryToggle) dryToggle.checked = currentDryRun;
                     }
 
-                    // Time Schedule Status
+                    // Time Schedule Status Toggle Switch
                     if (data.scheduleEnabled !== undefined) {
                         currentScheduleEnabled = data.scheduleEnabled;
-                        const schedBtn = document.getElementById('schedBtn');
-                        const isDark = document.getElementById('htmlRoot').classList.contains('dark');
+                        const schedToggle = document.getElementById('schedToggle');
+                        if (schedToggle) schedToggle.checked = currentScheduleEnabled;
 
                         if (data.scheduleStart) document.getElementById('schedStartTime').value = data.scheduleStart;
                         if (data.scheduleStop) document.getElementById('schedStopTime').value = data.scheduleStop;
-
-                        if (currentScheduleEnabled) {
-                            schedBtn.className = "bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-2 py-0.5 rounded-lg text-[9px] shadow transition whitespace-nowrap";
-                            schedBtn.innerText = "Active 🟢";
-                        } else {
-                            schedBtn.className = isDark
-                                ? "bg-slate-700 hover:bg-slate-600 text-slate-300 border border-slate-600 font-bold px-2 py-0.5 rounded-lg text-[9px] shadow transition whitespace-nowrap"
-                                : "bg-slate-200 hover:bg-slate-300 text-slate-800 border border-slate-300 font-bold px-2 py-0.5 rounded-lg text-[9px] shadow-sm transition whitespace-nowrap";
-                            schedBtn.innerText = "Disabled ⚪";
-                        }
                     }
 
                     // ESP32 Hardware Telemetry
@@ -824,11 +798,13 @@
         }
 
         function toggleAutoStart() {
-            const nextState = !currentAutoStart;
+            const toggle = document.getElementById('autoStartToggle');
+            const nextState = toggle.checked;
             const command = nextState ? 'AUTOSTART_ON' : 'AUTOSTART_OFF';
             client.publish('smartstarter/motor1/control', command, { qos: 1 }, (err) => {
                 if (err) {
                     alert("Failed to toggle Auto-Start: " + err.message);
+                    toggle.checked = !nextState;
                 } else {
                     console.log(`Auto-Start command ${command} published successfully`);
                 }
@@ -836,11 +812,13 @@
         }
 
         function toggleDryRun() {
-            const nextState = !currentDryRun;
+            const toggle = document.getElementById('dryRunToggle');
+            const nextState = toggle.checked;
             const command = nextState ? 'DRYRUN_ON' : 'DRYRUN_OFF';
             client.publish('smartstarter/motor1/control', command, { qos: 1 }, (err) => {
                 if (err) {
                     alert("Failed to toggle Dry-Run Protection: " + err.message);
+                    toggle.checked = !nextState;
                 } else {
                     console.log(`Dry-Run command ${command} published successfully`);
                 }
@@ -848,18 +826,25 @@
         }
 
         function toggleSchedule() {
-            const nextState = !currentScheduleEnabled;
+            const toggle = document.getElementById('schedToggle');
+            const nextState = toggle.checked;
             const startTime = document.getElementById('schedStartTime').value || '06:30';
             const stopTime = document.getElementById('schedStopTime').value || '18:00';
 
             if (nextState) {
                 const command = `SCHEDULE_CONFIG:${startTime},${stopTime}`;
                 client.publish('smartstarter/motor1/control', command, { qos: 1 }, (err) => {
-                    if (err) alert("Failed to configure schedule: " + err.message);
+                    if (err) {
+                        alert("Failed to configure schedule: " + err.message);
+                        toggle.checked = false;
+                    }
                 });
             } else {
                 client.publish('smartstarter/motor1/control', 'SCHEDULE_OFF', { qos: 1 }, (err) => {
-                    if (err) alert("Failed to disable schedule: " + err.message);
+                    if (err) {
+                        alert("Failed to disable schedule: " + err.message);
+                        toggle.checked = true;
+                    }
                 });
             }
         }
