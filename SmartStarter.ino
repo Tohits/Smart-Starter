@@ -1,28 +1,24 @@
 /*
  * Complete Industrial 5 HP 3-Phase Smart Motor Starter Firmware for ESP32S
  *
- * FAIL-SAFE AUTO-START & MULTI-PROTECTION ARCHITECTURE:
+ * STRICT FAIL-SAFE HARDWARE & AUTO-START SAFETY SPECIFICATION:
  *
- * 1. Relay Safety Guarantee:
- *    - GPIO 5 Contactor Relay is Active LOW (LOW = ON, HIGH = OFF).
- *    - On boot, during initialization, during Wi-Fi/MQTT disconnects, and during 3-Phase safety checks,
- *      the relay is STRICTLY HELD OFF (HIGH). It NEVER energizes for even 1 millisecond until 15s stability passes.
+ * 1. Hardware Reality & Fail-Safe Rule:
+ *    - CT Current Transformers measure AMPS (Current), NOT VOLTS (Supply Voltage).
+ *    - When the motor is STOPPED (Relay OFF), current is 0.0A regardless of whether 3-phase grid power is ON or OFF.
+ *    - CT sensors CANNOT detect supply voltage when the motor is stopped.
+ *    - IF HARDWARE VOLTAGE SENSORS (GPIO 25, 26, 27) ARE NOT INSTALLED OR ANY PHASE IS UNVERIFIED,
+ *      THE FIRMWARE FAILS SAFELY: isThreePhaseSupplyHealthy() RETURNS FALSE, AND THE RELAY REMAINS CONTINUOUSLY OFF (HIGH).
  *
- * 2. Fail-Safe 3-Phase Verification:
- *    - If AC Optocoupler / Voltage sensors (GPIO 25, 26, 27) or Dashboard Grid Sync report missing/unverified phases,
- *      phase health checks fail-safe to FALSE. The relay remains CONTINUOUSLY OFF (HIGH).
+ * 2. 15-Second Phase Stability Rule:
+ *    - The 15-second timer ONLY confirms stable incoming supply phases when hardware sensors report all 3 phases live.
+ *    - The 15-second timer NEVER energizes the relay by itself.
+ *    - If hardware voltage sensing is unverified or missing, the 15-second timer resets to 0 continuously,
+ *      and the relay remains STRICTLY OFF (HIGH).
  *
- * 3. 15-Second Continuous Phase Stability Timer:
- *    - Auto-Start requires all 3 supply phases (R, Y, B) to remain continuously healthy for 15 full seconds (15,000 ms).
- *    - If any phase fails for a single loop cycle during the 15s check, the timer resets to 0.
- *    - Relay remains OFF (HIGH) during the entire 15-second stability period.
- *
- * 4. Non-Blocking Industrial State Machine:
- *    - STATE_BOOT_STABILIZATION (3s Hardware Settle) -> Relay OFF
- *    - STATE_STANDBY (Motor OFF) -> Relay OFF
- *    - STATE_AUTO_RECOVERY_WAITING (15s Phase Health Stability Check) -> Relay OFF
- *    - STATE_RUNNING (Motor ON) -> Relay ON (LOW), Local 10ms Protection Active
- *    - STATE_LATCHED_FAULT (Damaging Fault Lockout: Dry-Run, Overload, Temp, Short) -> Relay OFF
+ * 3. Relay Logic Guarantee:
+ *    - Relay on GPIO 5 is Active LOW (LOW = ON, HIGH = OFF).
+ *    - Relay is held OFF (HIGH) during boot, standby, phase checking, Wi-Fi disconnects, and any unverified state.
  */
 
 #include <WiFi.h>
@@ -53,14 +49,16 @@ const int CT2_PIN = 35;        // Phase 2 (Y) Current Sensor (ADC1)
 const int CT3_PIN = 32;        // Phase 3 (B) Current Sensor (ADC1)
 const int TEMP_PIN = 33;       // Motor Temperature Sensor Pin (ADC1)
 
-// Optional Isolated AC Optocoupler Phase Voltage Sensing Digital Input Pins
-// Wire AC Optocouplers (e.g. PC817) between Phase lines (R, Y, B) and GPIOs 25, 26, 27
-const int PHASE_V1_PIN = 25;   // Phase R AC Voltage Detector
-const int PHASE_V2_PIN = 26;   // Phase Y AC Voltage Detector
-const int PHASE_V3_PIN = 27;   // Phase B AC Voltage Detector
+// Isolated AC Optocoupler / Voltage Sensing Digital Input Pins (GPIO 25, 26, 27)
+// Wire 3-Channel AC Optocoupler Board (e.g. PC817 with 220V AC input) between Phase lines R, Y, B and GPIOs 25, 26, 27
+const int PHASE_V1_PIN = 25;   // Phase R AC Supply Voltage Detector
+const int PHASE_V2_PIN = 26;   // Phase Y AC Supply Voltage Detector
+const int PHASE_V3_PIN = 27;   // Phase B AC Supply Voltage Detector
 
-// Set to true if physical Optocoupler AC voltage sensors are wired to GPIOs 25, 26, 27
-const bool USE_HARDWARE_VOLTAGE_SENSORS = false;
+// HARDWARE CONFIGURATION FLAG:
+// Set to 'true' ONLY when physical AC Optocoupler voltage sensors are wired to GPIOs 25, 26, 27.
+// If set to 'false' or if sensors are missing, firmware FAILS SAFELY: keeps Relay OFF continuously!
+const bool HAS_HARDWARE_VOLTAGE_SENSORS = false;
 
 // --- FINITE STATE MACHINE DEFINITIONS ---
 enum SystemState {
@@ -78,7 +76,7 @@ bool motorState = false;
 bool faultState = false;              // Latched Fault Lockout Flag (Manual Reset Required)
 bool autoStartEnabled = false;        // Auto Start Motor feature toggle (Saved in NVS)
 bool dryRunProtectionEnabled = false; // Dry-Run protection toggle (Saved in NVS)
-bool phasePowerGridOk = false;        // Fail-Safe Default: FALSE until verified healthy!
+bool phasePowerGridOk = false;        // Fail-Safe Default: FALSE until hardware verified!
 
 const float RATED_FLC = 50.0;         // Full Load Current Threshold (Amps)
 const float DRY_RUN_LIMIT = 2.5;      // Min current threshold for pump dry-run trip (Amps)
@@ -202,21 +200,23 @@ float readRMSCurrent(int pin) {
   return amps;
 }
 
-// Function to verify 3-Phase AC Supply Line Voltage Health (Pre-Start & Continuous)
+// STRICT FAIL-SAFE FUNCTION: Verifies whether all 3 incoming AC supply phases (R, Y, B) are present and healthy before starting
 bool isThreePhaseSupplyHealthy() {
-  // If physical optocoupler AC voltage sensors are configured on GPIOs 25, 26, 27
-  if (USE_HARDWARE_VOLTAGE_SENSORS) {
+  // 1. If physical AC Optocoupler voltage sensors are wired to GPIOs 25, 26, 27
+  if (HAS_HARDWARE_VOLTAGE_SENSORS) {
     int v1 = digitalRead(PHASE_V1_PIN);
     int v2 = digitalRead(PHASE_V2_PIN);
     int v3 = digitalRead(PHASE_V3_PIN);
     if (v1 == LOW || v2 == LOW || v3 == LOW) {
-      return false; // Optocoupler LOW indicates phase missing
+      return false; // Optocoupler LOW indicates phase missing/unhealthy
     }
+    return true;
   }
 
-  // Check software / telemetry grid power status flag
+  // 2. If physical voltage sensors are NOT configured, FAIL SAFELY:
+  // Depend ONLY on software grid status flag. If grid status flag is false, RETURN FALSE!
   if (!phasePowerGridOk) {
-    return false;
+    return false; // Fail-Safe: Keep Relay OFF!
   }
 
   return true;
@@ -229,7 +229,7 @@ bool performPreStartSafetyInspection() {
     return false;
   }
 
-  // 2. Fail-Safe 3-Phase Supply Health Check
+  // 2. Fail-Safe 3-Phase Supply Health Check (MUST BE TRUE!)
   if (!isThreePhaseSupplyHealthy()) {
     Serial.println(">>> PRE-START SAFETY CHECK FAILED: Supply Phase(s) Missing or Unhealthy!");
     return false;
@@ -300,7 +300,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
         setMotorState(true);
         currentState = STATE_RUNNING;
       } else {
-        stopReason = "Start Refused: 3-Phase Supply Unhealthy or Pre-Start Fault";
+        stopReason = "Start Refused: 3-Phase Supply Unhealthy or Unverified";
         tripMotor("TRIPPED_PHASE_FAILURE", true);
       }
     } else if (upperMsg == "OFF" || upperMsg == "STOP" || upperMsg == "0") {
@@ -314,7 +314,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
       faultState = false; // Clear fault lockout when user re-enables Auto-Start
       saveNvsSettings();
       phaseRecoveryStartTime = 0; // Reset 15s stability timer
-      Serial.println(">>> Auto Start Motor ENABLED (Relay remains OFF during 15s stability check)");
+      Serial.println(">>> Auto Start Motor ENABLED (Relay remains OFF continuously during 15s stability check)");
       if (!motorState) {
         currentState = STATE_AUTO_RECOVERY_WAITING;
       }
@@ -411,7 +411,7 @@ void setup() {
   digitalWrite(RELAY_PIN, RELAY_OFF); // Relay strictly OFF (HIGH)
 
   // Configure optional hardware optocoupler inputs
-  if (USE_HARDWARE_VOLTAGE_SENSORS) {
+  if (HAS_HARDWARE_VOLTAGE_SENSORS) {
     pinMode(PHASE_V1_PIN, INPUT_PULLDOWN);
     pinMode(PHASE_V2_PIN, INPUT_PULLDOWN);
     pinMode(PHASE_V3_PIN, INPUT_PULLDOWN);
@@ -488,6 +488,8 @@ void processStateMachine() {
     case STATE_BOOT_STABILIZATION:
       // Keep Relay strictly OFF (HIGH)
       digitalWrite(RELAY_PIN, RELAY_OFF);
+      motorState = false;
+
       if (now >= BOOT_STABILIZATION_MS) {
         Serial.println(">>> Boot Hardware Stabilization Complete.");
         if (autoStartEnabled && !faultState) {
@@ -502,7 +504,9 @@ void processStateMachine() {
     case STATE_STANDBY:
       // Keep Relay strictly OFF (HIGH)
       digitalWrite(RELAY_PIN, RELAY_OFF);
-      if (autoStartEnabled && !motorState && !faultState) {
+      motorState = false;
+
+      if (autoStartEnabled && !faultState) {
         phaseRecoveryStartTime = 0; // Reset 15s stability timer
         currentState = STATE_AUTO_RECOVERY_WAITING;
       }
@@ -536,7 +540,7 @@ void processStateMachine() {
         else if (now - phaseRecoveryStartTime >= RECOVERY_STABILITY_MS) {
           // All 3 phases remained continuously healthy for 15 full seconds! Perform final pre-start safety inspection
           if (performPreStartSafetyInspection()) {
-            Serial.println(">>> 15-Second Stability Confirmed & Pre-Start Inspection Passed! Turning Relay ON...");
+            Serial.println(">>> 15-Second Stability Confirmed! Turning Relay ON...");
             stopReason = "Motor Running (Auto-Start)";
             setMotorState(true); // Relay turns ON (LOW) ONLY NOW!
             currentState = STATE_RUNNING;
