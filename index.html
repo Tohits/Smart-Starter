@@ -186,6 +186,24 @@
             </div>
         </div>
 
+        <!-- System Activity & Event Log Panel -->
+        <div id="activityLogPanel" class="bg-slate-800 border border-slate-700 p-2 rounded-xl shadow transition-colors duration-300">
+            <div class="flex items-center justify-between gap-2 mb-1">
+                <h3 class="text-[9px] font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1">
+                    📋 System Activity & Event Log
+                </h3>
+                <div class="flex items-center gap-1.5">
+                    <button onclick="clearActivityLogs()" class="bg-slate-700 hover:bg-slate-600 text-slate-300 text-[8px] px-2 py-0.5 rounded font-semibold transition">
+                        🗑️ Clear Log
+                    </button>
+                </div>
+            </div>
+            <!-- Scrollable Log Container -->
+            <div id="logContainer" class="bg-slate-900/80 border border-slate-700/70 rounded-lg p-1.5 h-16 overflow-y-auto space-y-1 text-[9px] font-mono select-text">
+                <div class="text-slate-400 italic text-center py-2">System initialized. Waiting for events...</div>
+            </div>
+        </div>
+
         <!-- 3-Phase Current & Voltage Telemetry -->
         <div>
             <h3 id="telemetryHeading" class="text-[9px] font-bold mb-1 text-slate-300 uppercase tracking-wider">3-Phase Voltage & Current Telemetry</h3>
@@ -255,7 +273,7 @@
         Smart Starter Global Cloud Dashboard &bull; Powered by HiveMQ Cloud & Vercel
     </footer>
 
-    <!-- Global Cloud MQTT WebSockets Client & Pop-Up SMS Toast System -->
+    <!-- Global Cloud MQTT WebSockets Client & System Activity Logger -->
     <script>
         let currentAutoStart = false;
         let currentDryRun = true;
@@ -264,9 +282,53 @@
         let lastNotifiedStatus = '';
         let commandTimeoutId = null;
         let espLocalIp = '10.146.68.77';
+        let activityLogs = [];
+
+        // --- System Activity & Event Logger ---
+        function addActivityLog(message, type = 'info') {
+            const timeStr = new Date().toLocaleTimeString();
+            const logEntry = { time: timeStr, message: message, type: type };
+            activityLogs.unshift(logEntry);
+            if (activityLogs.length > 50) activityLogs.pop(); // Keep last 50 events
+
+            renderActivityLogs();
+        }
+
+        function renderActivityLogs() {
+            const logContainer = document.getElementById('logContainer');
+            if (!logContainer) return;
+
+            if (activityLogs.length === 0) {
+                logContainer.innerHTML = '<div class="text-slate-400 italic text-center py-2">No activity logs recorded.</div>';
+                return;
+            }
+
+            let html = '';
+            activityLogs.forEach(entry => {
+                let colorClass = 'text-slate-300';
+                if (entry.type === 'success') colorClass = 'text-emerald-400 font-bold';
+                else if (entry.type === 'error' || entry.type === 'fault') colorClass = 'text-rose-400 font-bold';
+                else if (entry.type === 'warning') colorClass = 'text-amber-400 font-bold';
+
+                html += `<div class="flex items-center gap-2 border-b border-slate-800/80 pb-0.5 mb-0.5">
+                    <span class="text-slate-500 text-[8px]">[${entry.time}]</span>
+                    <span class="${colorClass}">${entry.message}</span>
+                </div>`;
+            });
+
+            logContainer.innerHTML = html;
+        }
+
+        function clearActivityLogs() {
+            activityLogs = [];
+            renderActivityLogs();
+            showToast("Activity Log Cleared", "System log history cleared", "info");
+        }
 
         // --- Pop-Up SMS / Toast Alert Notification System ---
         function showToast(title, message, type = 'info') {
+            addActivityLog(`${title}: ${message}`, type);
+
             const container = document.getElementById('toastContainer');
             if (!container) return;
 
@@ -306,6 +368,7 @@
         }
 
         function openOtaModal() {
+            addActivityLog("Opened Web OTA Firmware Update Modal", "info");
             document.getElementById('otaModal').classList.remove('hidden');
         }
 
@@ -316,6 +379,7 @@
         function openOtaTab() {
             let targetIp = espLocalIp || prompt("Enter ESP32 local IP address:", "10.146.68.77");
             if (targetIp) {
+                addActivityLog(`Opened direct OTA portal tab (http://${targetIp}/update)`, "info");
                 window.open(`http://${targetIp}/update`, '_blank');
             }
         }
@@ -439,6 +503,7 @@
             const dryRunCard = document.getElementById('dryRunCard');
             const scheduleCard = document.getElementById('scheduleCard');
             const healthPanel = document.getElementById('healthPanel');
+            const activityLogPanel = document.getElementById('activityLogPanel');
             const telemetryHeading = document.getElementById('telemetryHeading');
             const espLabel = document.getElementById('espLabel');
             const uptimeLabel = document.getElementById('uptimeLabel');
@@ -460,6 +525,7 @@
                 dryRunCard.className = "bg-slate-800 border border-slate-700 px-3 py-2.5 rounded-xl shadow flex items-center justify-between gap-2 transition-colors duration-300";
                 scheduleCard.className = "bg-slate-800 border border-slate-700 px-3 py-1.5 rounded-xl shadow flex flex-col justify-between gap-1 transition-colors duration-300";
                 healthPanel.className = "bg-slate-800 border border-slate-700 p-2 rounded-xl shadow transition-colors duration-300";
+                activityLogPanel.className = "bg-slate-800 border border-slate-700 p-2 rounded-xl shadow transition-colors duration-300";
                 telemetryHeading.className = "text-[9px] font-bold mb-1 text-slate-300 uppercase tracking-wider";
                 espLabel.className = "text-slate-400 font-semibold text-[10px]";
                 uptimeLabel.className = "text-[9px] text-slate-300 mr-1";
@@ -482,6 +548,7 @@
                 dryRunCard.className = "bg-white border border-slate-200 px-3 py-2.5 rounded-xl shadow-sm flex items-center justify-between gap-2 transition-colors duration-300";
                 scheduleCard.className = "bg-white border border-slate-200 px-3 py-1.5 rounded-xl shadow-sm flex flex-col justify-between gap-1 transition-colors duration-300";
                 healthPanel.className = "bg-white border border-slate-200 p-2 rounded-xl shadow-sm transition-colors duration-300";
+                activityLogPanel.className = "bg-white border border-slate-200 p-2 rounded-xl shadow-sm transition-colors duration-300";
                 telemetryHeading.className = "text-[9px] font-bold mb-1 text-slate-800 uppercase tracking-wider";
                 espLabel.className = "text-slate-700 font-semibold text-[10px]";
                 uptimeLabel.className = "text-[9px] text-slate-700 font-medium mr-1";
