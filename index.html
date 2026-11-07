@@ -21,150 +21,154 @@
 <body class="bg-slate-900 text-slate-100 dark:bg-slate-900 dark:text-slate-100 h-screen overflow-hidden flex flex-col justify-between transition-colors duration-300">
 
     <!-- Header -->
-    <header class="bg-slate-800 border-b border-slate-700 py-2 px-4 shadow-md transition-colors duration-300">
+    <header class="bg-slate-800 border-b border-slate-700 py-1.5 px-4 shadow-md transition-colors duration-300">
         <div class="max-w-4xl mx-auto flex flex-row justify-between items-center gap-2">
             <div class="flex items-center gap-2 flex-wrap">
-                <h1 class="text-base sm:text-lg font-bold flex items-center gap-1">
+                <h1 class="text-sm sm:text-base font-bold flex items-center gap-1">
                     ⚙️ Smart Motor Starter
                 </h1>
                 <!-- Connection State Badge -->
-                <span id="connBadge" class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center gap-1">
+                <span id="connBadge" class="px-2 py-0.5 rounded-full text-[9px] font-semibold bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center gap-1">
                     <span id="connDot" class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
                     <span id="connText">Connecting...</span>
                 </span>
             </div>
             <div class="flex items-center gap-2">
                 <!-- Mobile Push Notification Permission Toggle -->
-                <button onclick="requestNotificationPermission()" class="bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 text-[10px] px-2 py-0.5 rounded-lg font-semibold transition flex items-center gap-1">
+                <button onclick="requestNotificationPermission()" class="bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 text-[9px] px-2 py-0.5 rounded-lg font-semibold transition flex items-center gap-1">
                     🔔 Notify
                 </button>
 
                 <!-- Theme Mode Selector (Auto / Dark / Light) -->
-                <select id="themeSelect" aria-label="Theme Selector" onchange="changeTheme(this.value)" class="bg-slate-700 text-slate-100 text-[10px] px-2 py-0.5 rounded-lg border border-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer shadow-sm">
+                <select id="themeSelect" aria-label="Theme Selector" onchange="changeTheme(this.value)" class="bg-slate-700 text-slate-100 text-[9px] px-2 py-0.5 rounded-lg border border-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer shadow-sm">
                     <option value="auto">🌗 Auto</option>
                     <option value="dark">🌙 Dark</option>
                     <option value="light">☀️ Light</option>
                 </select>
 
                 <!-- Compact Install App Button (Hidden by default) -->
-                <button id="installBtn" class="hidden bg-blue-600 hover:bg-blue-500 text-white px-2 py-0.5 rounded-lg text-[10px] font-medium transition flex items-center gap-1 shadow">
+                <button id="installBtn" class="hidden bg-blue-600 hover:bg-blue-500 text-white px-2 py-0.5 rounded-lg text-[9px] font-medium transition flex items-center gap-1 shadow">
                     <span>📱</span> Install
                 </button>
             </div>
         </div>
     </header>
 
-    <!-- Main Content (100% Single Viewport - No Scroll) -->
-    <main class="max-w-4xl mx-auto px-3 py-1.5 w-full flex-grow flex flex-col justify-evenly gap-2 overflow-hidden">
+    <!-- Main Content (100% Single Viewport - No Scroll & No Overflow) -->
+    <main class="max-w-4xl mx-auto px-3 py-1 w-full flex-grow flex flex-col justify-evenly gap-1.5 overflow-hidden">
 
         <!-- Status Card -->
-        <div id="statusCard" class="py-2 px-3 rounded-xl border border-slate-700 bg-slate-800 shadow-md text-center transition-all duration-200">
-            <p id="statusLabel" class="text-slate-400 text-[9px] uppercase tracking-wider font-semibold mb-0.5">Motor Status</p>
-            <h2 id="statusText" class="text-2xl sm:text-3xl font-black tracking-wide">WAITING FOR DATA...</h2>
-            <p id="lastSync" class="text-slate-400 text-[9px] mt-0.5 font-medium">Last Sync: Never</p>
+        <div id="statusCard" class="py-1.5 px-3 rounded-xl border border-slate-700 bg-slate-800 shadow-md text-center transition-all duration-200">
+            <p id="statusLabel" class="text-slate-400 text-[8px] uppercase tracking-wider font-semibold mb-0.5">Motor Status</p>
+            <h2 id="statusText" class="text-xl sm:text-2xl font-black tracking-wide">WAITING FOR DATA...</h2>
+            <p id="lastSync" class="text-slate-400 text-[8px] mt-0.5 font-medium">Last Sync: Never</p>
         </div>
 
         <!-- Smart Motor Health Dashboard Panel -->
         <div id="healthPanel" class="bg-slate-800 border border-slate-700 p-2 rounded-xl shadow transition-colors duration-300">
             <div class="flex items-center justify-between gap-2 mb-1">
-                <h3 class="text-[10px] font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1">
+                <h3 class="text-[9px] font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1">
                     🏥 Smart Motor Health Dashboard
                 </h3>
-                <span id="healthScoreBadge" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                <span id="healthScoreBadge" class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
                     100% EXCELLENT
                 </span>
             </div>
-            <!-- Health Metrics Grid -->
+            <!-- Health Metrics Grid (Includes Thermal Stress) -->
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-center text-xs">
                 <div class="bg-slate-900/60 p-1.5 rounded-lg border border-slate-700/60">
-                    <p class="text-slate-400 text-[9px] font-medium">Phase Balance</p>
+                    <p class="text-slate-400 text-[8px] font-medium">Phase Balance</p>
                     <p id="phaseBalanceVal" class="text-xs font-bold text-emerald-400 mt-0.5">100% Balanced</p>
                 </div>
                 <div class="bg-slate-900/60 p-1.5 rounded-lg border border-slate-700/60">
-                    <p class="text-slate-400 text-[9px] font-medium">Thermal Stress</p>
+                    <p class="text-slate-400 text-[8px] font-medium">Thermal Stress</p>
                     <p id="thermalStressVal" class="text-xs font-bold text-emerald-400 mt-0.5">Normal (35°C)</p>
                 </div>
                 <div class="bg-slate-900/60 p-1.5 rounded-lg border border-slate-700/60">
-                    <p class="text-slate-400 text-[9px] font-medium">Overload Risk</p>
+                    <p class="text-slate-400 text-[8px] font-medium">Overload Risk</p>
                     <p id="overloadRiskVal" class="text-xs font-bold text-emerald-400 mt-0.5">Low (0%)</p>
                 </div>
                 <div class="bg-slate-900/60 p-1.5 rounded-lg border border-slate-700/60">
-                    <p class="text-slate-400 text-[9px] font-medium">Diagnostic Note</p>
-                    <p id="healthInsightVal" class="text-[9px] font-semibold text-slate-300 truncate mt-0.5">System Healthy</p>
+                    <p class="text-slate-400 text-[8px] font-medium">Diagnostic Note</p>
+                    <p id="healthInsightVal" class="text-[8px] font-semibold text-slate-300 truncate mt-0.5">System Healthy</p>
                 </div>
             </div>
         </div>
 
-        <!-- Real-Time Metrics Row: Temperature, Energy (kWh), Running Hours -->
+        <!-- Real-Time Metrics Row: Line Voltage, Energy (kWh), Running Hours (No Temp duplicate!) -->
         <div class="grid grid-cols-3 gap-2 text-center text-xs">
-            <!-- Motor Temperature -->
-            <div class="telemetryCard bg-slate-800 border border-slate-700 p-2 rounded-xl shadow">
-                <p class="phaseLabel text-slate-400 text-[9px] font-semibold">🌡️ Temp</p>
-                <p id="motorTemp" class="text-base font-bold text-amber-400 mt-0.5">-- °C</p>
+            <!-- Line Voltage -->
+            <div class="telemetryCard bg-slate-800 border border-slate-700 p-1.5 rounded-xl shadow">
+                <p class="phaseLabel text-slate-400 text-[8px] font-semibold">🔌 AC Voltage</p>
+                <p id="lineVoltageVal" class="text-sm font-bold text-sky-400 mt-0.5">400 V (3-Phase)</p>
             </div>
             <!-- Energy Consumption (kWh) -->
-            <div class="telemetryCard bg-slate-800 border border-slate-700 p-2 rounded-xl shadow">
-                <p class="phaseLabel text-slate-400 text-[9px] font-semibold">⚡ Energy</p>
-                <p id="energykWh" class="text-base font-bold text-emerald-400 mt-0.5">0.00 kWh</p>
+            <div class="telemetryCard bg-slate-800 border border-slate-700 p-1.5 rounded-xl shadow">
+                <p class="phaseLabel text-slate-400 text-[8px] font-semibold">⚡ Energy</p>
+                <p id="energykWh" class="text-sm font-bold text-emerald-400 mt-0.5">0.00 kWh</p>
             </div>
             <!-- Motor Running Hours -->
-            <div class="telemetryCard bg-slate-800 border border-slate-700 p-2 rounded-xl shadow">
-                <p class="phaseLabel text-slate-400 text-[9px] font-semibold">⏱️ Motor Run</p>
-                <p id="motorRunHours" class="text-base font-bold text-indigo-400 mt-0.5">0h 0m</p>
+            <div class="telemetryCard bg-slate-800 border border-slate-700 p-1.5 rounded-xl shadow">
+                <p class="phaseLabel text-slate-400 text-[8px] font-semibold">⏱️ Motor Run</p>
+                <p id="motorRunHours" class="text-sm font-bold text-indigo-400 mt-0.5">0h 0m</p>
             </div>
         </div>
 
-        <!-- Combined Bar: Hardware, Auto-Start, Dry-Run & Time Scheduler -->
-        <div class="grid grid-cols-1 sm:grid-cols-4 gap-2 text-xs">
-            <!-- ESP32 Hardware Status with Live Local IP -->
-            <div id="hardwareBar" class="bg-slate-800 border border-slate-700 p-2 rounded-xl shadow flex items-center justify-between gap-1 transition-colors duration-300">
-                <div class="flex items-center gap-1">
-                    <span id="espLabel" class="text-slate-400 font-semibold text-[10px]">ESP32:</span>
-                    <span id="espHealthBadge" class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-400">Offline</span>
-                    <button onclick="rebootEsp()" class="bg-rose-600/20 hover:bg-rose-600/30 text-rose-400 border border-rose-500/30 px-1.5 py-0.5 rounded text-[9px] font-semibold transition">
-                        🔄 Reboot
-                    </button>
-                    <button onclick="openOtaModal()" class="bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 px-1.5 py-0.5 rounded text-[9px] font-semibold transition">
-                        📡 OTA
-                    </button>
+        <!-- Hardware Status Row (Spacious & Clean, no text overflow!) -->
+        <div id="hardwareBar" class="bg-slate-800 border border-slate-700 px-2.5 py-1.5 rounded-xl shadow flex items-center justify-between gap-2 text-xs flex-wrap transition-colors duration-300">
+            <div class="flex items-center gap-1.5 flex-wrap">
+                <span id="espLabel" class="text-slate-400 font-semibold text-[10px]">ESP32:</span>
+                <span id="espHealthBadge" class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-400">Offline</span>
+                <div id="wifiSsidContainer" class="hidden font-semibold text-emerald-400 bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-500/30 text-[9px]">
+                    📶 <span id="wifiSsid" class="text-white font-bold">--</span>
                 </div>
-                <div id="wifiSsidContainer" class="hidden font-semibold text-emerald-400 bg-emerald-950/40 px-1.5 py-0.5 rounded border border-emerald-500/30 text-[9px] flex items-center gap-1">
-                    <span>📶 <span id="wifiSsid" class="text-white font-bold">--</span></span>
-                    <span id="espIpBadge" class="text-blue-300 font-mono text-[9px] pl-1 border-l border-emerald-500/40">10.146.68.77</span>
+                <div id="ipContainer" class="hidden font-mono font-bold text-blue-300 bg-blue-950/40 px-2 py-0.5 rounded border border-blue-500/30 text-[9px]">
+                    🌐 <span id="espIpBadge">--</span>
                 </div>
-                <div id="uptimeLabel" class="text-[9px] text-slate-300">⏱️ <span id="espUptime" class="font-bold text-white">--</span></div>
             </div>
+            <div class="flex items-center gap-1.5">
+                <div id="uptimeLabel" class="text-[9px] text-slate-300 mr-1">⏱️ <span id="espUptime" class="font-bold text-white">--</span></div>
+                <button onclick="rebootEsp()" class="bg-rose-600/20 hover:bg-rose-600/30 text-rose-400 border border-rose-500/30 px-2 py-0.5 rounded text-[9px] font-semibold transition">
+                    🔄 Reboot
+                </button>
+                <button onclick="openOtaModal()" class="bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 px-2 py-0.5 rounded text-[9px] font-semibold transition">
+                    📡 OTA Update
+                </button>
+            </div>
+        </div>
 
+        <!-- Toggles & Time Scheduler Controls Row (Balanced 3-Column Grid) -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
             <!-- Auto-Start Toggle -->
-            <div id="autoStartCard" class="bg-slate-800 border border-slate-700 p-2 rounded-xl shadow flex items-center justify-between gap-1 transition-colors duration-300">
-                <div class="flex items-center gap-1">
+            <div id="autoStartCard" class="bg-slate-800 border border-slate-700 px-2.5 py-1.5 rounded-xl shadow flex items-center justify-between gap-2 transition-colors duration-300">
+                <div class="flex items-center gap-1.5">
                     <span class="text-sm">⚡</span>
                     <h4 id="autoStartTitle" class="font-bold text-white text-[10px]">Auto Start</h4>
                 </div>
-                <button id="autoStartBtn" onclick="toggleAutoStart()" class="bg-slate-700 hover:bg-slate-600 text-slate-300 border border-slate-600 font-bold px-2 py-0.5 rounded-lg text-[9px] shadow transition whitespace-nowrap">
+                <button id="autoStartBtn" onclick="toggleAutoStart()" class="bg-slate-700 hover:bg-slate-600 text-slate-300 border border-slate-600 font-bold px-2.5 py-0.5 rounded-lg text-[9px] shadow transition whitespace-nowrap">
                     Disabled ⚪
                 </button>
             </div>
 
             <!-- Dry-Run Protection Toggle -->
-            <div id="dryRunCard" class="bg-slate-800 border border-slate-700 p-2 rounded-xl shadow flex items-center justify-between gap-1 transition-colors duration-300">
-                <div class="flex items-center gap-1">
+            <div id="dryRunCard" class="bg-slate-800 border border-slate-700 px-2.5 py-1.5 rounded-xl shadow flex items-center justify-between gap-2 transition-colors duration-300">
+                <div class="flex items-center gap-1.5">
                     <span class="text-sm">💧</span>
                     <h4 id="dryRunTitle" class="font-bold text-white text-[10px]">Dry-Run</h4>
                 </div>
-                <button id="dryRunBtn" onclick="toggleDryRun()" class="bg-emerald-600 text-white font-bold px-2 py-0.5 rounded-lg text-[9px] shadow transition whitespace-nowrap">
+                <button id="dryRunBtn" onclick="toggleDryRun()" class="bg-emerald-600 text-white font-bold px-2.5 py-0.5 rounded-lg text-[9px] shadow transition whitespace-nowrap">
                     Active 🟢
                 </button>
             </div>
 
-            <!-- Time Scheduler Controls -->
-            <div id="scheduleCard" class="bg-slate-800 border border-slate-700 p-2 rounded-xl shadow flex items-center justify-between gap-1 transition-colors duration-300">
+            <!-- Time Scheduler Controls (Clean layout, no overflow!) -->
+            <div id="scheduleCard" class="bg-slate-800 border border-slate-700 px-2 py-1.5 rounded-xl shadow flex items-center justify-between gap-1 transition-colors duration-300">
                 <div class="flex items-center gap-1">
                     <span class="text-sm">⏰</span>
                     <div class="flex items-center gap-1">
-                        <input type="time" id="schedStartTime" value="06:30" aria-label="Schedule Start Time" class="bg-slate-900 border border-slate-700 text-white text-[10px] px-1 py-0.5 rounded font-mono">
-                        <span class="text-[9px] text-slate-400">-</span>
-                        <input type="time" id="schedStopTime" value="18:00" aria-label="Schedule Stop Time" class="bg-slate-900 border border-slate-700 text-white text-[10px] px-1 py-0.5 rounded font-mono">
+                        <input type="time" id="schedStartTime" value="06:30" aria-label="Schedule Start Time" class="bg-slate-900 border border-slate-700 text-white text-[9px] px-1 py-0.5 rounded font-mono w-14 text-center">
+                        <span class="text-[8px] text-slate-400">-</span>
+                        <input type="time" id="schedStopTime" value="18:00" aria-label="Schedule Stop Time" class="bg-slate-900 border border-slate-700 text-white text-[9px] px-1 py-0.5 rounded font-mono w-14 text-center">
                     </div>
                 </div>
                 <button id="schedBtn" onclick="toggleSchedule()" class="bg-slate-700 hover:bg-slate-600 text-slate-300 border border-slate-600 font-bold px-2 py-0.5 rounded-lg text-[9px] shadow transition whitespace-nowrap">
@@ -175,35 +179,35 @@
 
         <!-- 3-Phase Current & Voltage Telemetry -->
         <div>
-            <h3 id="telemetryHeading" class="text-[10px] font-bold mb-1 text-slate-300 uppercase tracking-wider">3-Phase Voltage & Current Telemetry</h3>
+            <h3 id="telemetryHeading" class="text-[9px] font-bold mb-1 text-slate-300 uppercase tracking-wider">3-Phase Voltage & Current Telemetry</h3>
             <div class="grid grid-cols-3 gap-2">
                 <!-- Phase 1 -->
-                <div class="telemetryCard bg-slate-800 border border-slate-700 p-2 rounded-xl shadow text-center transition-colors duration-300">
-                    <p class="phaseLabel text-slate-400 text-[10px] font-semibold">Phase 1 (R)</p>
-                    <p id="phase1Val" class="text-lg sm:text-xl font-bold text-blue-400 mt-0.5">0.0 <span class="unitLabel text-[10px] font-normal text-slate-400">A</span></p>
-                    <p id="v1Val" class="text-[10px] text-slate-400 font-medium">230.0 V</p>
+                <div class="telemetryCard bg-slate-800 border border-slate-700 p-1.5 rounded-xl shadow text-center transition-colors duration-300">
+                    <p class="phaseLabel text-slate-400 text-[9px] font-semibold">Phase 1 (R)</p>
+                    <p id="phase1Val" class="text-base sm:text-lg font-bold text-blue-400 mt-0.5">0.0 <span class="unitLabel text-[9px] font-normal text-slate-400">A</span></p>
+                    <p id="v1Val" class="text-[9px] text-slate-400 font-medium">230.0 V</p>
                 </div>
                 <!-- Phase 2 -->
-                <div class="telemetryCard bg-slate-800 border border-slate-700 p-2 rounded-xl shadow text-center transition-colors duration-300">
-                    <p class="phaseLabel text-slate-400 text-[10px] font-semibold">Phase 2 (Y)</p>
-                    <p id="phase2Val" class="text-lg sm:text-xl font-bold text-blue-400 mt-0.5">0.0 <span class="unitLabel text-[10px] font-normal text-slate-400">A</span></p>
-                    <p id="v2Val" class="text-[10px] text-slate-400 font-medium">230.0 V</p>
+                <div class="telemetryCard bg-slate-800 border border-slate-700 p-1.5 rounded-xl shadow text-center transition-colors duration-300">
+                    <p class="phaseLabel text-slate-400 text-[9px] font-semibold">Phase 2 (Y)</p>
+                    <p id="phase2Val" class="text-base sm:text-lg font-bold text-blue-400 mt-0.5">0.0 <span class="unitLabel text-[9px] font-normal text-slate-400">A</span></p>
+                    <p id="v2Val" class="text-[9px] text-slate-400 font-medium">230.0 V</p>
                 </div>
                 <!-- Phase 3 -->
-                <div class="telemetryCard bg-slate-800 border border-slate-700 p-2 rounded-xl shadow text-center transition-colors duration-300">
-                    <p class="phaseLabel text-slate-400 text-[10px] font-semibold">Phase 3 (B)</p>
-                    <p id="phase3Val" class="text-lg sm:text-xl font-bold text-blue-400 mt-0.5">0.0 <span class="unitLabel text-[10px] font-normal text-slate-400">A</span></p>
-                    <p id="v3Val" class="text-[10px] text-slate-400 font-medium">230.0 V</p>
+                <div class="telemetryCard bg-slate-800 border border-slate-700 p-1.5 rounded-xl shadow text-center transition-colors duration-300">
+                    <p class="phaseLabel text-slate-400 text-[9px] font-semibold">Phase 3 (B)</p>
+                    <p id="phase3Val" class="text-base sm:text-lg font-bold text-blue-400 mt-0.5">0.0 <span class="unitLabel text-[9px] font-normal text-slate-400">A</span></p>
+                    <p id="v3Val" class="text-[9px] text-slate-400 font-medium">230.0 V</p>
                 </div>
             </div>
         </div>
 
         <!-- Control Buttons -->
-        <div class="grid grid-cols-2 gap-2.5">
-            <button onclick="sendControl('ON')" class="bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white py-3 rounded-xl font-bold text-base shadow-lg transition flex items-center justify-center gap-1.5">
+        <div class="grid grid-cols-2 gap-2">
+            <button onclick="sendControl('ON')" class="bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white py-2.5 rounded-xl font-bold text-base shadow-lg transition flex items-center justify-center gap-1.5">
                 🟢 START MOTOR
             </button>
-            <button onclick="sendControl('OFF')" class="bg-rose-600 hover:bg-rose-500 active:scale-95 text-white py-3 rounded-xl font-bold text-base shadow-lg transition flex items-center justify-center gap-1.5">
+            <button onclick="sendControl('OFF')" class="bg-rose-600 hover:bg-rose-500 active:scale-95 text-white py-2.5 rounded-xl font-bold text-base shadow-lg transition flex items-center justify-center gap-1.5">
                 🔴 STOP MOTOR
             </button>
         </div>
@@ -238,7 +242,7 @@
     </div>
 
     <!-- Footer -->
-    <footer class="bg-slate-800 border-t border-slate-700 py-1.5 px-4 text-center text-[9px] text-slate-500 font-medium transition-colors duration-300">
+    <footer class="bg-slate-800 border-t border-slate-700 py-1 px-4 text-center text-[8px] text-slate-500 font-medium transition-colors duration-300">
         Smart Starter Global Cloud Dashboard &bull; Powered by HiveMQ Cloud & Vercel
     </footer>
 
@@ -332,13 +336,13 @@
             insightEl.innerText = insight;
 
             if (score >= 90) {
-                badge.className = "px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30";
+                badge.className = "px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30";
                 badge.innerText = `${score}% EXCELLENT`;
             } else if (score >= 60) {
-                badge.className = "px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30";
+                badge.className = "px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30";
                 badge.innerText = `${score}% WARNING`;
             } else {
-                badge.className = "px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30";
+                badge.className = "px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30";
                 badge.innerText = `${score}% CRITICAL`;
             }
         }
@@ -398,46 +402,46 @@
             if (isDark) {
                 html.classList.add('dark');
                 body.className = "bg-slate-900 text-slate-100 h-screen overflow-hidden flex flex-col justify-between transition-colors duration-300";
-                header.className = "bg-slate-800 border-b border-slate-700 py-2 px-4 shadow-md transition-colors duration-300";
-                footer.className = "bg-slate-800 border-t border-slate-700 py-1.5 px-4 text-center text-[9px] text-slate-500 font-medium transition-colors duration-300";
-                themeSelect.className = "bg-slate-700 text-slate-100 text-[10px] px-2 py-0.5 rounded-lg border border-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer shadow-sm";
-                hardwareBar.className = "bg-slate-800 border border-slate-700 p-2 rounded-xl shadow flex items-center justify-between gap-1 transition-colors duration-300";
-                autoStartCard.className = "bg-slate-800 border border-slate-700 p-2 rounded-xl shadow flex items-center justify-between gap-1 transition-colors duration-300";
-                dryRunCard.className = "bg-slate-800 border border-slate-700 p-2 rounded-xl shadow flex items-center justify-between gap-1 transition-colors duration-300";
-                scheduleCard.className = "bg-slate-800 border border-slate-700 p-2 rounded-xl shadow flex items-center justify-between gap-1 transition-colors duration-300";
+                header.className = "bg-slate-800 border-b border-slate-700 py-1.5 px-4 shadow-md transition-colors duration-300";
+                footer.className = "bg-slate-800 border-t border-slate-700 py-1 px-4 text-center text-[8px] text-slate-500 font-medium transition-colors duration-300";
+                themeSelect.className = "bg-slate-700 text-slate-100 text-[9px] px-2 py-0.5 rounded-lg border border-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer shadow-sm";
+                hardwareBar.className = "bg-slate-800 border border-slate-700 px-2.5 py-1.5 rounded-xl shadow flex items-center justify-between gap-2 text-xs flex-wrap transition-colors duration-300";
+                autoStartCard.className = "bg-slate-800 border border-slate-700 px-2.5 py-1.5 rounded-xl shadow flex items-center justify-between gap-2 transition-colors duration-300";
+                dryRunCard.className = "bg-slate-800 border border-slate-700 px-2.5 py-1.5 rounded-xl shadow flex items-center justify-between gap-2 transition-colors duration-300";
+                scheduleCard.className = "bg-slate-800 border border-slate-700 px-2 py-1.5 rounded-xl shadow flex items-center justify-between gap-1 transition-colors duration-300";
                 healthPanel.className = "bg-slate-800 border border-slate-700 p-2 rounded-xl shadow transition-colors duration-300";
-                telemetryHeading.className = "text-[10px] font-bold mb-1 text-slate-300 uppercase tracking-wider";
+                telemetryHeading.className = "text-[9px] font-bold mb-1 text-slate-300 uppercase tracking-wider";
                 espLabel.className = "text-slate-400 font-semibold text-[10px]";
-                uptimeLabel.className = "text-[9px] text-slate-300";
+                uptimeLabel.className = "text-[9px] text-slate-300 mr-1";
                 espUptime.className = "font-bold text-white";
                 autoStartTitle.className = "font-bold text-white text-[10px]";
                 dryRunTitle.className = "font-bold text-white text-[10px]";
 
-                telemetryCards.forEach(c => c.className = "telemetryCard bg-slate-800 border border-slate-700 p-2 rounded-xl shadow text-center transition-colors duration-300");
-                phaseLabels.forEach(p => p.className = "phaseLabel text-slate-400 text-[10px] font-semibold");
-                unitLabels.forEach(u => u.className = "unitLabel text-[10px] font-normal text-slate-400");
+                telemetryCards.forEach(c => c.className = "telemetryCard bg-slate-800 border border-slate-700 p-1.5 rounded-xl shadow text-center transition-colors duration-300");
+                phaseLabels.forEach(p => p.className = "phaseLabel text-slate-400 text-[9px] font-semibold");
+                unitLabels.forEach(u => u.className = "unitLabel text-[9px] font-normal text-slate-400");
                 themeColor.setAttribute('content', '#1e293b');
             } else {
                 html.classList.remove('dark');
                 body.className = "bg-slate-100 text-slate-900 h-screen overflow-hidden flex flex-col justify-between transition-colors duration-300";
-                header.className = "bg-white border-b border-slate-200 py-2 px-4 shadow-sm transition-colors duration-300";
-                footer.className = "bg-white border-t border-slate-200 py-1.5 px-4 text-center text-[9px] text-slate-600 font-semibold transition-colors duration-300";
-                themeSelect.className = "bg-slate-100 text-slate-900 text-[10px] px-2 py-0.5 rounded-lg border border-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer shadow-sm font-semibold";
-                hardwareBar.className = "bg-white border border-slate-200 p-2 rounded-xl shadow-sm flex items-center justify-between gap-1 transition-colors duration-300";
-                autoStartCard.className = "bg-white border border-slate-200 p-2 rounded-xl shadow-sm flex items-center justify-between gap-1 transition-colors duration-300";
-                dryRunCard.className = "bg-white border border-slate-200 p-2 rounded-xl shadow-sm flex items-center justify-between gap-1 transition-colors duration-300";
-                scheduleCard.className = "bg-white border border-slate-200 p-2 rounded-xl shadow-sm flex items-center justify-between gap-1 transition-colors duration-300";
+                header.className = "bg-white border-b border-slate-200 py-1.5 px-4 shadow-sm transition-colors duration-300";
+                footer.className = "bg-white border-t border-slate-200 py-1 px-4 text-center text-[8px] text-slate-600 font-semibold transition-colors duration-300";
+                themeSelect.className = "bg-slate-100 text-slate-900 text-[9px] px-2 py-0.5 rounded-lg border border-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer shadow-sm font-semibold";
+                hardwareBar.className = "bg-white border border-slate-200 px-2.5 py-1.5 rounded-xl shadow-sm flex items-center justify-between gap-2 text-xs flex-wrap transition-colors duration-300";
+                autoStartCard.className = "bg-white border border-slate-200 px-2.5 py-1.5 rounded-xl shadow-sm flex items-center justify-between gap-2 transition-colors duration-300";
+                dryRunCard.className = "bg-white border border-slate-200 px-2.5 py-1.5 rounded-xl shadow-sm flex items-center justify-between gap-2 transition-colors duration-300";
+                scheduleCard.className = "bg-white border border-slate-200 px-2 py-1.5 rounded-xl shadow-sm flex items-center justify-between gap-1 transition-colors duration-300";
                 healthPanel.className = "bg-white border border-slate-200 p-2 rounded-xl shadow-sm transition-colors duration-300";
-                telemetryHeading.className = "text-[10px] font-bold mb-1 text-slate-800 uppercase tracking-wider";
+                telemetryHeading.className = "text-[9px] font-bold mb-1 text-slate-800 uppercase tracking-wider";
                 espLabel.className = "text-slate-700 font-semibold text-[10px]";
-                uptimeLabel.className = "text-[9px] text-slate-700 font-medium";
+                uptimeLabel.className = "text-[9px] text-slate-700 font-medium mr-1";
                 espUptime.className = "font-bold text-slate-900";
                 autoStartTitle.className = "font-bold text-slate-900 text-[10px]";
                 dryRunTitle.className = "font-bold text-slate-900 text-[10px]";
 
-                telemetryCards.forEach(c => c.className = "telemetryCard bg-white border border-slate-200 p-2 rounded-xl shadow-sm text-center transition-colors duration-300");
-                phaseLabels.forEach(p => p.className = "phaseLabel text-slate-600 text-[10px] font-semibold");
-                unitLabels.forEach(u => u.className = "unitLabel text-[10px] font-normal text-slate-600");
+                telemetryCards.forEach(c => c.className = "telemetryCard bg-white border border-slate-200 p-1.5 rounded-xl shadow-sm text-center transition-colors duration-300");
+                phaseLabels.forEach(p => p.className = "phaseLabel text-slate-600 text-[9px] font-semibold");
+                unitLabels.forEach(u => u.className = "unitLabel text-[9px] font-normal text-slate-600");
                 themeColor.setAttribute('content', '#ffffff');
             }
 
@@ -454,45 +458,45 @@
 
             if (status === 'ON') {
                 if (isDark) {
-                    statusCard.className = "py-2 px-3 rounded-xl border border-emerald-500 bg-emerald-950/40 shadow-md text-center transition-all duration-200";
-                    statusText.className = "text-2xl sm:text-3xl font-black tracking-wide text-emerald-400";
-                    statusLabel.className = "text-slate-300 text-[9px] uppercase tracking-wider font-semibold mb-0.5";
-                    lastSync.className = "text-slate-400 text-[9px] mt-0.5 font-medium";
+                    statusCard.className = "py-1.5 px-3 rounded-xl border border-emerald-500 bg-emerald-950/40 shadow-md text-center transition-all duration-200";
+                    statusText.className = "text-xl sm:text-2xl font-black tracking-wide text-emerald-400";
+                    statusLabel.className = "text-slate-300 text-[8px] uppercase tracking-wider font-semibold mb-0.5";
+                    lastSync.className = "text-slate-400 text-[8px] mt-0.5 font-medium";
                 } else {
-                    statusCard.className = "py-2 px-3 rounded-xl border-2 border-emerald-500 bg-emerald-50 shadow-sm text-center transition-all duration-200";
-                    statusText.className = "text-2xl sm:text-3xl font-black tracking-wide text-emerald-700";
-                    statusLabel.className = "text-slate-700 text-[9px] uppercase tracking-wider font-bold mb-0.5";
-                    lastSync.className = "text-slate-600 text-[9px] mt-0.5 font-semibold";
+                    statusCard.className = "py-1.5 px-3 rounded-xl border-2 border-emerald-500 bg-emerald-50 shadow-sm text-center transition-all duration-200";
+                    statusText.className = "text-xl sm:text-2xl font-black tracking-wide text-emerald-700";
+                    statusLabel.className = "text-slate-700 text-[8px] uppercase tracking-wider font-bold mb-0.5";
+                    lastSync.className = "text-slate-600 text-[8px] mt-0.5 font-semibold";
                 }
             } else if (status.startsWith('TRIPPED')) {
                 if (isDark) {
-                    statusCard.className = "py-2 px-3 rounded-xl border-2 border-rose-500 bg-rose-950/60 shadow-lg text-center transition-all duration-200 animate-pulse";
-                    statusText.className = "text-xl sm:text-2xl font-black tracking-wide text-rose-400";
+                    statusCard.className = "py-1.5 px-3 rounded-xl border-2 border-rose-500 bg-rose-950/60 shadow-lg text-center transition-all duration-200 animate-pulse";
+                    statusText.className = "text-lg sm:text-xl font-black tracking-wide text-rose-400";
                 } else {
-                    statusCard.className = "py-2 px-3 rounded-xl border-2 border-rose-600 bg-rose-100 shadow-md text-center transition-all duration-200 animate-pulse";
-                    statusText.className = "text-xl sm:text-2xl font-black tracking-wide text-rose-800";
+                    statusCard.className = "py-1.5 px-3 rounded-xl border-2 border-rose-600 bg-rose-100 shadow-md text-center transition-all duration-200 animate-pulse";
+                    statusText.className = "text-lg sm:text-xl font-black tracking-wide text-rose-800";
                 }
                 statusText.innerText = "🚨 FAULT: " + status;
             } else if (status === 'REBOOTING') {
                 if (isDark) {
-                    statusCard.className = "py-2 px-3 rounded-xl border border-amber-500 bg-amber-950/40 shadow-md text-center transition-all duration-200";
-                    statusText.className = "text-2xl sm:text-3xl font-black tracking-wide text-amber-400";
+                    statusCard.className = "py-1.5 px-3 rounded-xl border border-amber-500 bg-amber-950/40 shadow-md text-center transition-all duration-200";
+                    statusText.className = "text-xl sm:text-2xl font-black tracking-wide text-amber-400";
                 } else {
-                    statusCard.className = "py-2 px-3 rounded-xl border-2 border-amber-500 bg-amber-50 shadow-sm text-center transition-all duration-200";
-                    statusText.className = "text-2xl sm:text-3xl font-black tracking-wide text-amber-700";
+                    statusCard.className = "py-1.5 px-3 rounded-xl border-2 border-amber-500 bg-amber-50 shadow-sm text-center transition-all duration-200";
+                    statusText.className = "text-xl sm:text-2xl font-black tracking-wide text-amber-700";
                 }
                 statusText.innerText = "REBOOTING ESP32...";
             } else { // 'OFF'
                 if (isDark) {
-                    statusCard.className = "py-2 px-3 rounded-xl border border-rose-500 bg-rose-950/40 shadow-md text-center transition-all duration-200";
-                    statusText.className = "text-2xl sm:text-3xl font-black tracking-wide text-rose-400";
-                    statusLabel.className = "text-slate-300 text-[9px] uppercase tracking-wider font-semibold mb-0.5";
-                    lastSync.className = "text-slate-400 text-[9px] mt-0.5 font-medium";
+                    statusCard.className = "py-1.5 px-3 rounded-xl border border-rose-500 bg-rose-950/40 shadow-md text-center transition-all duration-200";
+                    statusText.className = "text-xl sm:text-2xl font-black tracking-wide text-rose-400";
+                    statusLabel.className = "text-slate-300 text-[8px] uppercase tracking-wider font-semibold mb-0.5";
+                    lastSync.className = "text-slate-400 text-[8px] mt-0.5 font-medium";
                 } else {
-                    statusCard.className = "py-2 px-3 rounded-xl border-2 border-rose-400 bg-rose-50 shadow-sm text-center transition-all duration-200";
-                    statusText.className = "text-2xl sm:text-3xl font-black tracking-wide text-rose-700";
-                    statusLabel.className = "text-slate-700 text-[9px] uppercase tracking-wider font-bold mb-0.5";
-                    lastSync.className = "text-slate-600 text-[9px] mt-0.5 font-semibold";
+                    statusCard.className = "py-1.5 px-3 rounded-xl border-2 border-rose-400 bg-rose-50 shadow-sm text-center transition-all duration-200";
+                    statusText.className = "text-xl sm:text-2xl font-black tracking-wide text-rose-700";
+                    statusLabel.className = "text-slate-700 text-[8px] uppercase tracking-wider font-bold mb-0.5";
+                    lastSync.className = "text-slate-600 text-[8px] mt-0.5 font-semibold";
                 }
             }
         }
@@ -560,15 +564,15 @@
             const text = document.getElementById('connText');
 
             if (state === 'connected') {
-                badge.className = "px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1";
+                badge.className = "px-2 py-0.5 rounded-full text-[9px] font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1";
                 dot.className = "w-1.5 h-1.5 rounded-full bg-emerald-400";
                 text.innerText = message || "Connected";
             } else if (state === 'connecting') {
-                badge.className = "px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center gap-1";
+                badge.className = "px-2 py-0.5 rounded-full text-[9px] font-semibold bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center gap-1";
                 dot.className = "w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse";
                 text.innerText = message || "Connecting...";
             } else {
-                badge.className = "px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center gap-1";
+                badge.className = "px-2 py-0.5 rounded-full text-[9px] font-semibold bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center gap-1";
                 dot.className = "w-1.5 h-1.5 rounded-full bg-rose-400";
                 text.innerText = message || "Disconnected";
             }
@@ -663,19 +667,16 @@
                     updateStatusCardStyle(data.status);
 
                     // Update Amps
-                    document.getElementById('phase1Val').innerHTML = `${i1} <span class="unitLabel text-[10px] font-normal">A</span>`;
-                    document.getElementById('phase2Val').innerHTML = `${i2} <span class="unitLabel text-[10px] font-normal">A</span>`;
-                    document.getElementById('phase3Val').innerHTML = `${i3} <span class="unitLabel text-[10px] font-normal">A</span>`;
+                    document.getElementById('phase1Val').innerHTML = `${i1} <span class="unitLabel text-[9px] font-normal">A</span>`;
+                    document.getElementById('phase2Val').innerHTML = `${i2} <span class="unitLabel text-[9px] font-normal">A</span>`;
+                    document.getElementById('phase3Val').innerHTML = `${i3} <span class="unitLabel text-[9px] font-normal">A</span>`;
 
                     // Update Voltages
                     if (data.v1 !== undefined) document.getElementById('v1Val').innerText = `${data.v1} V`;
                     if (data.v2 !== undefined) document.getElementById('v2Val').innerText = `${data.v2} V`;
                     if (data.v3 !== undefined) document.getElementById('v3Val').innerText = `${data.v3} V`;
 
-                    // Update Temperature, Energy & Run Hours
-                    if (data.temperature !== undefined) {
-                        document.getElementById('motorTemp').innerText = `${data.temperature} °C`;
-                    }
+                    // Update Energy & Run Hours
                     if (data.energykWh !== undefined) {
                         document.getElementById('energykWh').innerText = `${data.energykWh} kWh`;
                     }
@@ -693,10 +694,12 @@
                         const linkEl = document.getElementById('otaDirectLink');
                         const ipEl = document.getElementById('otaIpDisplay');
                         const badgeIp = document.getElementById('espIpBadge');
+                        const ipContainer = document.getElementById('ipContainer');
 
                         if (linkEl) linkEl.href = `http://${espLocalIp}/update`;
                         if (ipEl) ipEl.innerText = espLocalIp;
                         if (badgeIp) badgeIp.innerText = espLocalIp;
+                        if (ipContainer) ipContainer.classList.remove('hidden');
                     }
 
                     if (data.ssid) {
@@ -767,8 +770,8 @@
 
                     const isDark = document.getElementById('htmlRoot').classList.contains('dark');
                     document.getElementById('espHealthBadge').className = isDark
-                        ? "px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400"
-                        : "px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300";
+                        ? "px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-400"
+                        : "px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300";
                     document.getElementById('espHealthBadge').innerText = "Online (Live)";
 
                     setConnectionState('connected', 'Cloud Live');
@@ -778,15 +781,16 @@
             }
         });
 
-        // Watchdog timer: if no ESP32 telemetry received in 8 seconds, mark ESP32 as offline & hide Wi-Fi SSID
+        // Watchdog timer: if no ESP32 telemetry received in 8 seconds, mark ESP32 as offline & hide Wi-Fi SSID/IP
         setInterval(() => {
             if (lastMessageTime > 0 && (Date.now() - lastMessageTime > 8000)) {
                 const isDark = document.getElementById('htmlRoot').classList.contains('dark');
                 document.getElementById('espHealthBadge').className = isDark
-                    ? "px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-400"
-                    : "px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-300";
+                    ? "px-1.5 py-0.5 rounded text-[9px] font-bold bg-rose-500/20 text-rose-400"
+                    : "px-1.5 py-0.5 rounded text-[9px] font-bold bg-rose-100 text-rose-800 border border-rose-300";
                 document.getElementById('espHealthBadge').innerText = "ESP32 Offline";
                 document.getElementById('wifiSsidContainer').classList.add('hidden');
+                document.getElementById('ipContainer').classList.add('hidden');
             }
         }, 2000);
 
