@@ -1,34 +1,37 @@
 /*
  * Complete Industrial 5 HP 3-Phase Smart Motor Starter Firmware for ESP32S
  *
- * REFACTORED INDUSTRIAL SAFETY FIRMWARE:
+ * 10-POINT INDUSTRIAL SAFETY & SELF-LEARNING SPECIFICATION:
  *
- * 1. UNIFIED SAFE STARTING STATE MACHINE:
- *    - All start sources (Manual START, Auto-Start, Scheduled START, Power Return) MUST pass through
- *      the same non-blocking state machine (STATE_AUTO_RECOVERY_WAITING).
- *    - No MQTT callback, scheduling function, or power recovery function can directly energize GPIO 5.
- *    - Relay GPIO 5 remains strictly OFF (HIGH) during boot, initialization, and the entire 15-second phase check.
+ * 1. Strict Fail-Safe Hardware Phase Verification:
+ *    - Uses isolated hardware AC Optocouplers (GPIO 25, 26, 27) for Phase R, Y, B.
+ *    - If HAS_HARDWARE_VOLTAGE_SENSORS is false or sensors are unverified, isThreePhaseSupplyHealthy()
+ *      returns FALSE and Relay stays CONTINUOUSLY OFF (HIGH).
+ *    - Telemetry reports -1.0 for V1/V2/V3 when voltage transformers are not installed (Zero fake 230V numbers!).
  *
- * 2. 50Hz AC OPTOCOUPLER PULSE-FREQUENCY PHASE DETECTION:
- *    - Uses a 40ms pulse sampling window to detect 50Hz AC zero-crossing pulses without false zero-dip readings.
- *    - If HAS_HARDWARE_VOLTAGE_SENSORS is false or any phase is missing, returns FALSE (Fail-Safe: Relay stays OFF).
- *    - Telemetry reports -1.0 for V1/V2/V3 (displayed as N/A) when voltage transformers are not installed.
+ * 2. Unified Safe Starting State Machine:
+ *    - Manual START, Auto-Start, Schedule, & Power Return ALL use the exact same state machine.
+ *    - No MQTT command or callback can directly energize GPIO 5.
  *
- * 3. LOCAL PROTECTION EXECUTION PRIORITY:
- *    - processStateMachine() runs FIRST in loop() to ensure local protection executes every ~1ms without network delays.
+ * 3. Authorized Latched Fault Reset:
+ *    - Damaging faults (Overload, Dry-Run, Temp, Short) set latched faultState = true (Persisted in NVS).
+ *    - Latched faults can ONLY be cleared by an authorized 'RESET_FAULT' command over MQTT after safety checks pass.
  *
- * 4. ADVANCED CT & TEMP SENSOR DIAGNOSTICS:
- *    - Validates CT DC bias midpoint (1200 < ADC < 2800) and detects saturated/disconnected sensors.
- *    - Invalid sensor readings set sensorFault = "SENSOR_FAULT_CT" or "TEMP_SENSOR_UNCALIBRATED" and return -1.0.
+ * 4. Configurable Motor Overload & Temperature Protection:
+ *    - Configurable RATED_FLC (Default 8.5A for 5 HP Motor, updateable via 'SET_FLC:8.5').
+ *    - Inverse-time overload filtering (3s delay) prevents false trips on inrush current.
+ *    - Sensor Out-of-Bounds ADC check (<50 or >4000) reports SENSOR_FAULT instead of fake 35°C.
  *
- * 5. 10-SECOND AVERAGED SELF-LEARNING DRY-RUN ENGINE:
- *    - Operator command 'CALIBRATE_DRYRUN' samples and averages 10 filtered total current readings over 10 seconds.
- *    - Aborts calibration if current is unstable (>25% variance) or phase fault occurs.
- *    - dryRunThreshold = learnedBaseline * 0.50 (Saved in NVS).
+ * 5. Universal Self-Learning Dry-Run Protection Engine:
+ *    - Calculates Total Current (R + Y + B).
+ *    - Operator-initiated calibration ('CALIBRATE_DRYRUN') samples 10s running baseline and saves in NVS.
+ *    - dryRunThreshold = learnedBaseline * 0.50 (Universal 50% drop).
+ *    - Trips TRIPPED_DRY_RUN if total current <= threshold for 5 continuous seconds.
+ *    - If uncalibrated, reports NOT_CALIBRATED and disables dry-run trips.
  *
- * 6. AUTHORIZED CONDITIONAL FAULT RESET:
- *    - 'RESET_FAULT' verifies physical temperature and sensor health. Refuses reset if fault persists.
- *    - faultState persists across reboots in NVS.
+ * 6. Hardware Fail-Safe:
+ *    - GPIO 5 Active LOW: LOW = Contactor ON, HIGH = Contactor OFF.
+ *    - Relay forced OFF (HIGH) immediately on setup() entry before Wi-Fi/NVS initialization.
  */
 
 #include <WiFi.h>
@@ -87,13 +90,14 @@ bool autoStartEnabled = false;        // Auto Start Motor feature toggle (Saved 
 bool dryRunProtectionEnabled = false; // Dry-Run protection toggle (Saved in NVS)
 bool phasePowerGridOk = false;        // Software Grid Status Flag (Fail-Safe Default: FALSE)
 
-// Universal Self-Learning Dry-Run Protection Variables
+// Universal Self-Learning Dry-Run Variables
 bool isCalibrated = false;            // True when normal total current baseline is stored in NVS
 bool isCalibrating = false;           // True during 10-second calibration sampling
 float learnedBaseline = 0.0;          // Total normal current (R + Y + B) in Amps
 float dryRunThreshold = 0.0;          // 50% of learnedBaseline
 float calibrationSamples[10];         // Array for 10-second averaged calibration
 int calibrationSampleIndex = 0;
+unsigned long calibrationStartTime = 0;     // Timestamp when calibration started
 unsigned long lastCalibrationSampleTime = 0;
 unsigned long suspectedDryRunStartTime = 0; // Timer for continuous 50% current drop confirmation
 
@@ -380,9 +384,9 @@ void startBaselineCalibration() {
 bool resetLatchedFault() {
   // STRICT RULE: RESET_FAULT must verify that original physical fault conditions have cleared!
   float temp = readMotorTemperature();
-  if (temp > MAX_TEMP_LIMIT) {
-    Serial.println(">>> Fault Reset Refused: Motor Temperature is still above limit!");
-    stopReason = "Reset Refused: Motor Still Over-Temperature";
+  if (temp < 0.0 || temp > MAX_TEMP_LIMIT) {
+    Serial.println(">>> Fault Reset Refused: Motor Temperature is still above limit or sensor is faulty!");
+    stopReason = "Reset Refused: Motor Over-Temperature or Sensor Fault";
     publishTelemetry();
     return false;
   }
