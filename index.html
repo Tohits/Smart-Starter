@@ -60,11 +60,15 @@
     <!-- Main Content (100% Single Viewport - Absolutely Zero Vertical Scroll) -->
     <main class="max-w-4xl mx-auto px-2.5 py-1 w-full flex-grow flex flex-col justify-between gap-1 overflow-hidden">
 
-        <!-- Status Card -->
+        <!-- Status Card with Explicit Stop Reason -->
         <div id="statusCard" class="py-1 px-2.5 rounded-lg border border-slate-700 bg-slate-800 shadow-md text-center transition-all duration-200">
             <p id="statusLabel" class="text-slate-400 text-[8px] uppercase tracking-wider font-semibold">Motor Status</p>
             <h2 id="statusText" class="text-lg sm:text-xl font-black tracking-wide leading-tight">WAITING FOR DATA...</h2>
-            <p id="lastSync" class="text-slate-400 text-[8px] font-medium">Last Sync: Never</p>
+            <div class="flex items-center justify-center gap-2 text-[8px] text-slate-400 font-medium">
+                <span id="lastSync">Last Sync: Never</span>
+                <span>&bull;</span>
+                <span id="statusReasonLabel" class="text-amber-400 font-bold">Reason: Standby</span>
+            </div>
         </div>
 
         <!-- Smart Motor Health Dashboard Panel -->
@@ -92,7 +96,7 @@
                     <p id="overloadRiskVal" class="text-[10px] font-bold text-emerald-400">Low (0%)</p>
                 </div>
                 <div class="bg-slate-900/60 p-1 rounded border border-slate-700/60">
-                    <p class="text-slate-400 text-[8px] font-medium">Diagnostic Note</p>
+                    <p class="text-slate-400 text-[8px] font-medium">Diagnostic / Stop Reason</p>
                     <p id="healthInsightVal" class="text-[8px] font-semibold text-slate-300 truncate">System Healthy</p>
                 </div>
             </div>
@@ -186,7 +190,7 @@
             </div>
         </div>
 
-        <!-- System Activity & Event Log Panel (Super Compact Single Viewport) -->
+        <!-- System Activity & Event Log Panel -->
         <div id="activityLogPanel" class="bg-slate-800 border border-slate-700 p-1.5 rounded-lg shadow transition-colors duration-300">
             <div class="flex items-center justify-between gap-2 mb-0.5">
                 <h3 class="text-[8px] font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1">
@@ -196,7 +200,7 @@
                     🗑️ Clear
                 </button>
             </div>
-            <!-- Scrollable Log Container (Compact 2-line auto-scroll) -->
+            <!-- Scrollable Log Container -->
             <div id="logContainer" class="bg-slate-900/80 border border-slate-700/70 rounded p-1 h-9 overflow-y-auto space-y-0.5 text-[8px] font-mono select-text">
                 <div class="text-slate-400 italic text-center py-0.5">System initialized. Waiting for events...</div>
             </div>
@@ -762,18 +766,27 @@
                     const tempC = data.temperature || 35.0;
                     evaluateMotorHealth(i1, i2, i3, tempC, data.status);
 
+                    // Update Explicit Stop Reason Display
+                    if (data.stopReason) {
+                        const reasonText = data.status === 'ON' ? "Motor Running 🟢" : data.stopReason;
+                        document.getElementById('healthInsightVal').innerText = reasonText;
+                        document.getElementById('statusReasonLabel').innerText = `Reason: ${reasonText}`;
+                    }
+
                     // Trigger Pop-Up SMS Toast Notification only on status changes or faults
                     if (data.status !== lastNotifiedStatus) {
                         lastNotifiedStatus = data.status;
                         if (data.status.startsWith('TRIPPED')) {
-                            showToast("🚨 Smart Starter Fault Alert!", `Motor tripped due to: ${data.status}`, "fault");
-                            triggerMobileNotification("🚨 Smart Starter Fault Alert!", `Motor tripped due to: ${data.status}`, "motor-fault");
+                            const stopMsg = data.stopReason || data.status;
+                            showToast("🚨 Smart Starter Fault Alert!", stopMsg, "fault");
+                            triggerMobileNotification("🚨 Smart Starter Fault Alert!", stopMsg, "motor-fault");
                         } else if (data.status === 'ON') {
                             showToast("⚙️ Motor Starter Status", "Motor is now RUNNING 🟢", "success");
                             triggerMobileNotification("⚙️ Smart Starter Status", "Motor is now RUNNING 🟢", "motor-status");
                         } else if (data.status === 'OFF') {
-                            showToast("⚙️ Motor Starter Status", "Motor is now STOPPED 🔴", "info");
-                            triggerMobileNotification("⚙️ Smart Starter Status", "Motor is now STOPPED 🔴", "motor-status");
+                            const stopMsg = data.stopReason || "Motor Stopped 🔴";
+                            showToast("⚙️ Motor Starter Status", stopMsg, "info");
+                            triggerMobileNotification("⚙️ Smart Starter Status", stopMsg, "motor-status");
                         }
                     }
 

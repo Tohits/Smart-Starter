@@ -2,6 +2,7 @@
  * Complete Industrial 5 HP 3-Phase Smart Motor Starter Firmware for ESP32S
  * Features:
  * - Captive Portal (WiFiManager) for easy Wi-Fi setup
+ * - Explicit Stop Reason & Diagnostic Logging (Manual, Schedule, Dry-Run, Overload, Thermal, Phase Loss)
  * - Intelligent Auto-Start with Fault Lockout (Prevents Rapid ON/OFF Chattering Loop)
  * - Dynamic Time Scheduler (Configurable Start/Stop Times via MQTT Dashboard)
  * - Intelligent Dry-Run Protection with 5-Second Startup Grace Period
@@ -48,6 +49,8 @@ const float RATED_FLC = 50.0;         // Temporarily set high (50A) for testing 
 const float DRY_RUN_LIMIT = 2.5;      // Min current threshold for pump dry-run trip (Amps)
 const float MAX_TEMP_LIMIT = 150.0;   // Temporarily set high (150°C) to prevent false trips while testing without temp sensor
 
+String stopReason = "System Boot / Standby"; // Explicit reason why motor stopped
+
 unsigned long motorStartTime = 0;     // Timestamp when motor started (for startup grace period)
 const unsigned long DRY_RUN_GRACE_MS = 5000; // 5-second grace period after start
 
@@ -93,7 +96,6 @@ bool checkCurrentSafetyBeforeStart() {
   float i2 = readRMSCurrent(CT2_PIN);
   float i3 = readRMSCurrent(CT3_PIN);
 
-  // If current is unexpectedly high BEFORE starting (> 10.0A pre-start residual), short-circuit or grounding fault is present!
   if (i1 > 10.0 || i2 > 10.0 || i3 > 10.0) {
     Serial.println(">>> SAFETY INSPECTION FAILED: Pre-start current surge / short circuit detected!");
     return false;
@@ -167,27 +169,30 @@ void callback(char* topic, byte* payload, unsigned int length) {
 
   if (String(topic) == mqtt_topic_control) {
     if (upperMsg == "ON" || upperMsg == "START" || upperMsg == "1") {
-      faultState = false; // Clear fault lockout on manual START
+      faultState = false;
       Serial.println(">>> START Button Pressed: Inspecting pre-start current safety...");
       if (checkCurrentSafetyBeforeStart()) {
-        Serial.println(">>> Pre-start Inspection PASSED -> Turning MOTOR ON");
+        stopReason = "Motor Running";
         setMotorState(true);
       } else {
-        Serial.println(">>> Pre-start Inspection FAILED -> Motor Start Refused!");
+        stopReason = "Fault Trip: TRIPPED_FAULTY_CURRENT";
         tripMotor("TRIPPED_FAULTY_CURRENT");
       }
     } else if (upperMsg == "OFF" || upperMsg == "STOP" || upperMsg == "0") {
-      faultState = false; // Clear fault lockout on manual STOP
+      faultState = false;
+      stopReason = "Manual STOP Command";
       Serial.println(">>> Command matched: Turning MOTOR OFF");
       setMotorState(false);
     } else if (upperMsg == "AUTOSTART_ON") {
       autoStartEnabled = true;
-      faultState = false; // Reset fault state when re-enabling Auto-Start
+      faultState = false;
       Serial.println(">>> Auto Start Motor ENABLED");
       if (!motorState) {
         if (checkCurrentSafetyBeforeStart()) {
+          stopReason = "Motor Running (Auto-Start)";
           setMotorState(true);
         } else {
+          stopReason = "Fault Trip: TRIPPED_FAULTY_CURRENT";
           tripMotor("TRIPPED_FAULTY_CURRENT");
         }
       }
@@ -248,10 +253,10 @@ void reconnectMqtt() {
       if (autoStartEnabled && !motorState && !faultState) {
         Serial.println(">>> Auto-Start Active: Performing Pre-Start Current Safety Inspection...");
         if (checkCurrentSafetyBeforeStart()) {
-          Serial.println(">>> Pre-Start Inspection Passed! Starting motor...");
+          stopReason = "Motor Running (Auto-Start)";
           setMotorState(true);
         } else {
-          Serial.println(">>> Pre-Start Inspection FAILED! Abnormal current detected before start.");
+          stopReason = "Fault Trip: TRIPPED_FAULTY_CURRENT";
           tripMotor("TRIPPED_FAULTY_CURRENT");
         }
       }
@@ -342,17 +347,17 @@ void loop() {
 
   unsigned long now = millis();
 
-  // --- CONTINUOUS AUTO-START CURRENT INSPECTION (Only runs if NO FAULT LOCKOUT is active) ---
+  // --- CONTINUOUS AUTO-START CURRENT INSPECTION ---
   if (autoStartEnabled && !motorState && !faultState) {
     static unsigned long lastAutoStartCheck = 0;
     if (now - lastAutoStartCheck > 4000) {
       lastAutoStartCheck = now;
       if (checkCurrentSafetyBeforeStart()) {
-        Serial.println(">>> AUTO-START SAFETY CHECK PASSED: Starting Motor!");
+        stopReason = "Motor Running (Auto-Start)";
         setMotorState(true);
         publishTelemetry();
       } else {
-        Serial.println(">>> AUTO-START SAFETY CHECK FAILED: Faulty Current Detected!");
+        stopReason = "Fault Trip: TRIPPED_FAULTY_CURRENT";
         tripMotor("TRIPPED_FAULTY_CURRENT");
       }
     }
@@ -390,14 +395,17 @@ void loop() {
       if (currentHour == SCHEDULE_START_HOUR && currentMin == SCHEDULE_START_MIN && !motorState) {
         Serial.println(">>> SCHEDULE TRIGGER: Inspecting current safety...");
         if (checkCurrentSafetyBeforeStart()) {
+          stopReason = "Motor Running (Scheduled)";
           setMotorState(true);
         } else {
+          stopReason = "Fault Trip: TRIPPED_FAULTY_CURRENT";
           tripMotor("TRIPPED_FAULTY_CURRENT");
         }
         publishTelemetry();
       }
       else if (currentHour == SCHEDULE_STOP_HOUR && currentMin == SCHEDULE_STOP_MIN && motorState) {
         Serial.println(">>> SCHEDULE TRIGGER: Stopping Motor!");
+        stopReason = "Scheduled STOP (Timer)";
         setMotorState(false);
         publishTelemetry();
       }
@@ -413,24 +421,24 @@ void loop() {
 
     // 1. Overload Protection
     if (i1 > RATED_FLC || i2 > RATED_FLC || i3 > RATED_FLC) {
-      Serial.println(">>> TRIP: Overload detected on phase(s)! Shutting down motor immediately.");
+      stopReason = "Fault Trip: TRIPPED_OVERLOAD";
       tripMotor("TRIPPED_OVERLOAD");
     }
     // 2. Over-Temperature Protection
     else if (temp > MAX_TEMP_LIMIT) {
-      Serial.println(">>> TRIP: High Motor Temperature detected! Shutting down motor immediately.");
+      stopReason = "Fault Trip: TRIPPED_OVERTEMP";
       tripMotor("TRIPPED_OVERTEMP");
     }
     // 3. Dry-Run Protection (Triggers if enabled AND 5-second startup grace period has elapsed)
     else if (dryRunProtectionEnabled && (now - motorStartTime > DRY_RUN_GRACE_MS)) {
       if (i1 < DRY_RUN_LIMIT && i2 < DRY_RUN_LIMIT && i3 < DRY_RUN_LIMIT) {
-        Serial.println(">>> TRIP: Dry Run detected! Pump running empty. Shutting down motor immediately.");
+        stopReason = "Fault Trip: TRIPPED_DRY_RUN";
         tripMotor("TRIPPED_DRY_RUN");
       }
     }
-    // 4. Single Phasing / Phase Failure Protection (Triggers if any phase fails while motor is running)
+    // 4. Single Phasing Protection
     else if ((i1 > 2.0 && (i2 < 0.5 || i3 < 0.5)) || (i2 > 2.0 && (i1 < 0.5 || i3 < 0.5)) || (i3 > 2.0 && (i1 < 0.5 || i2 < 0.5))) {
-      Serial.println(">>> TRIP: Single Phasing / Phase Loss detected! Shutting down motor immediately.");
+      stopReason = "Fault Trip: TRIPPED_PHASE_FAILURE";
       tripMotor("TRIPPED_PHASE_FAILURE");
     }
   }
@@ -438,12 +446,13 @@ void loop() {
 
 void tripMotor(String reason) {
   motorState = false;
-  faultState = true; // Lock out Auto-Start from re-starting until fault is acknowledged
+  faultState = true;
+  stopReason = "Fault Trip: " + reason;
   digitalWrite(RELAY_PIN, RELAY_OFF);
-  Serial.print(">>> Motor Tripped (Fault Lockout Activated): ");
+  Serial.print(">>> Motor Tripped: ");
   Serial.println(reason);
 
-  publishTelemetry(); // Publish full telemetry so feature toggles & state remain 100% intact!
+  publishTelemetry();
 }
 
 void setMotorState(bool state) {
@@ -451,6 +460,7 @@ void setMotorState(bool state) {
   digitalWrite(RELAY_PIN, state ? RELAY_ON : RELAY_OFF);
   if (state) {
     motorStartTime = millis();
+    stopReason = "Motor Running";
   }
   Serial.print(">>> Relay Pin P5 (GPIO 5) set to: ");
   Serial.println(state ? "RELAY_ON (LOW)" : "RELAY_OFF (HIGH)");
@@ -482,6 +492,7 @@ void publishTelemetry() {
 
   String payload = "{";
   payload += "\"status\":\"" + String(motorState ? "ON" : "OFF") + "\",";
+  payload += "\"stopReason\":\"" + stopReason + "\",";
   payload += "\"phase1\":" + String(i1, 2) + ",";
   payload += "\"phase2\":" + String(i2, 2) + ",";
   payload += "\"phase3\":" + String(i3, 2) + ",";
