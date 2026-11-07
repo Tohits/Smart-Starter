@@ -2,6 +2,7 @@
  * Complete Industrial 5 HP 3-Phase Smart Motor Starter Firmware for ESP32S
  * Features:
  * - Captive Portal (WiFiManager) for easy Wi-Fi setup
+ * - Intelligent 3-Phase Pre-Start Inspection (Auto-Start & Manual START inspect 3-Phase Health prior to turning ON)
  * - Explicit Stop Reason & Diagnostic Logging (Manual, Schedule, Dry-Run, Overload, Thermal, Phase Loss)
  * - Intelligent Auto-Start with Fault Lockout (Prevents Rapid ON/OFF Chattering Loop)
  * - Dynamic Time Scheduler (Configurable Start/Stop Times via MQTT Dashboard)
@@ -88,20 +89,7 @@ void tripMotor(String reason);
 void setMotorState(bool state);
 float readRMSCurrent(int pin);
 float readMotorTemperature();
-bool checkCurrentSafetyBeforeStart();
-
-// Function to perform Pre-Start Current Inspection
-bool checkCurrentSafetyBeforeStart() {
-  float i1 = readRMSCurrent(CT1_PIN);
-  float i2 = readRMSCurrent(CT2_PIN);
-  float i3 = readRMSCurrent(CT3_PIN);
-
-  if (i1 > 10.0 || i2 > 10.0 || i3 > 10.0) {
-    Serial.println(">>> SAFETY INSPECTION FAILED: Pre-start current surge / short circuit detected!");
-    return false;
-  }
-  return true;
-}
+bool check3PhaseSafetyBeforeStart();
 
 // Function to calculate RMS current from CT Sensor with Dynamic DC Baseline & Zero-Clamping
 float readRMSCurrent(int pin) {
@@ -141,6 +129,31 @@ float readRMSCurrent(int pin) {
   return amps;
 }
 
+// Function to perform 3-Phase Safety Inspection prior to motor start
+bool check3PhaseSafetyBeforeStart() {
+  float i1 = readRMSCurrent(CT1_PIN);
+  float i2 = readRMSCurrent(CT2_PIN);
+  float i3 = readRMSCurrent(CT3_PIN);
+
+  // 1. Pre-start residual leakage / short circuit check
+  if (i1 > 10.0 || i2 > 10.0 || i3 > 10.0) {
+    Serial.println(">>> 3-PHASE PRE-CHECK FAILED: Pre-start current surge / short circuit detected!");
+    return false;
+  }
+
+  // 2. ADC Baseline Health Check on all 3 channels
+  int raw1 = analogRead(CT1_PIN);
+  int raw2 = analogRead(CT2_PIN);
+  int raw3 = analogRead(CT3_PIN);
+
+  if (raw1 < 100 || raw1 > 4000 || raw2 < 100 || raw2 > 4000 || raw3 < 100 || raw3 > 4000) {
+    Serial.println(">>> 3-PHASE PRE-CHECK FAILED: Sensor or phase line input fault on one or more phases!");
+    return false;
+  }
+
+  return true;
+}
+
 // Function to read Motor Body Temperature (°C) with Floating Pin Suppression
 float readMotorTemperature() {
   int raw = analogRead(TEMP_PIN);
@@ -170,13 +183,13 @@ void callback(char* topic, byte* payload, unsigned int length) {
   if (String(topic) == mqtt_topic_control) {
     if (upperMsg == "ON" || upperMsg == "START" || upperMsg == "1") {
       faultState = false;
-      Serial.println(">>> START Button Pressed: Inspecting pre-start current safety...");
-      if (checkCurrentSafetyBeforeStart()) {
+      Serial.println(">>> START Button Pressed: Inspecting 3-Phase Safety...");
+      if (check3PhaseSafetyBeforeStart()) {
         stopReason = "Motor Running";
         setMotorState(true);
       } else {
-        stopReason = "Fault Trip: TRIPPED_FAULTY_CURRENT";
-        tripMotor("TRIPPED_FAULTY_CURRENT");
+        stopReason = "Start Refused: 3-Phase Power Fault";
+        tripMotor("TRIPPED_PHASE_FAILURE");
       }
     } else if (upperMsg == "OFF" || upperMsg == "STOP" || upperMsg == "0") {
       faultState = false;
@@ -188,12 +201,12 @@ void callback(char* topic, byte* payload, unsigned int length) {
       faultState = false;
       Serial.println(">>> Auto Start Motor ENABLED");
       if (!motorState) {
-        if (checkCurrentSafetyBeforeStart()) {
+        if (check3PhaseSafetyBeforeStart()) {
           stopReason = "Motor Running (Auto-Start)";
           setMotorState(true);
         } else {
-          stopReason = "Fault Trip: TRIPPED_FAULTY_CURRENT";
-          tripMotor("TRIPPED_FAULTY_CURRENT");
+          stopReason = "Auto-Start Refused: 3-Phase Power Fault";
+          tripMotor("TRIPPED_PHASE_FAILURE");
         }
       }
     } else if (upperMsg == "AUTOSTART_OFF") {
@@ -251,13 +264,13 @@ void reconnectMqtt() {
       mqttClient.subscribe(mqtt_topic_control);
 
       if (autoStartEnabled && !motorState && !faultState) {
-        Serial.println(">>> Auto-Start Active: Performing Pre-Start Current Safety Inspection...");
-        if (checkCurrentSafetyBeforeStart()) {
+        Serial.println(">>> Auto-Start Active: Inspecting 3-Phase Power Health...");
+        if (check3PhaseSafetyBeforeStart()) {
           stopReason = "Motor Running (Auto-Start)";
           setMotorState(true);
         } else {
-          stopReason = "Fault Trip: TRIPPED_FAULTY_CURRENT";
-          tripMotor("TRIPPED_FAULTY_CURRENT");
+          stopReason = "Auto-Start Refused: 3-Phase Power Fault";
+          tripMotor("TRIPPED_PHASE_FAILURE");
         }
       }
 
@@ -347,18 +360,20 @@ void loop() {
 
   unsigned long now = millis();
 
-  // --- CONTINUOUS AUTO-START CURRENT INSPECTION ---
+  // --- CONTINUOUS AUTO-START 3-PHASE SAFETY INSPECTION ---
   if (autoStartEnabled && !motorState && !faultState) {
     static unsigned long lastAutoStartCheck = 0;
     if (now - lastAutoStartCheck > 4000) {
       lastAutoStartCheck = now;
-      if (checkCurrentSafetyBeforeStart()) {
+      if (check3PhaseSafetyBeforeStart()) {
+        Serial.println(">>> AUTO-START 3-PHASE INSPECTION PASSED: Starting Motor!");
         stopReason = "Motor Running (Auto-Start)";
         setMotorState(true);
         publishTelemetry();
       } else {
-        stopReason = "Fault Trip: TRIPPED_FAULTY_CURRENT";
-        tripMotor("TRIPPED_FAULTY_CURRENT");
+        Serial.println(">>> AUTO-START 3-PHASE INSPECTION FAILED: 3-Phase Power Fault!");
+        stopReason = "Auto-Start Refused: 3-Phase Power Fault";
+        tripMotor("TRIPPED_PHASE_FAILURE");
       }
     }
   }
@@ -393,13 +408,13 @@ void loop() {
       int currentMin = timeinfo.tm_min;
 
       if (currentHour == SCHEDULE_START_HOUR && currentMin == SCHEDULE_START_MIN && !motorState) {
-        Serial.println(">>> SCHEDULE TRIGGER: Inspecting current safety...");
-        if (checkCurrentSafetyBeforeStart()) {
+        Serial.println(">>> SCHEDULE TRIGGER: Inspecting 3-phase safety...");
+        if (check3PhaseSafetyBeforeStart()) {
           stopReason = "Motor Running (Scheduled)";
           setMotorState(true);
         } else {
-          stopReason = "Fault Trip: TRIPPED_FAULTY_CURRENT";
-          tripMotor("TRIPPED_FAULTY_CURRENT");
+          stopReason = "Schedule Start Refused: 3-Phase Power Fault";
+          tripMotor("TRIPPED_PHASE_FAILURE");
         }
         publishTelemetry();
       }
