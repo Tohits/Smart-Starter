@@ -2,6 +2,7 @@
  * Complete Industrial 5 HP 3-Phase Smart Motor Starter Firmware for ESP32S
  * Features:
  * - Captive Portal (WiFiManager) for easy Wi-Fi setup
+ * - Intelligent Auto-Start with Pre-Start Current Safety Inspection
  * - Dynamic Time Scheduler (Configurable Start/Stop Times via MQTT Dashboard)
  * - Intelligent Dry-Run Protection with 5-Second Startup Grace Period
  * - 3-Phase Current & Voltage Monitoring with Zero-Noise Clamping
@@ -10,7 +11,7 @@
  * - NTP Time Synchronization & Auto-Start Mode
  * - Hardware Watchdog Timer (WDT) for Fail-Proof Auto-Recovery
  * - Expanded MQTT Buffer Size (512 bytes) & Transmits Local IP for Zero-Prompt OTA Updates
- * - Continuous Protections (Overload, Dry-Run, Over-Temp, Phase Failure)
+ * - Continuous Protections (Overload, Dry-Run, Over-Temp, Phase Failure, Faulty Current)
  */
 
 #include <WiFi.h>
@@ -77,7 +78,90 @@ bool scheduleEnabled = false;  // Toggle time schedule ON/OFF via Web Dashboard
 unsigned long lastMqttPublish = 0;
 const long mqttInterval = 3000; // Publish telemetry every 3 seconds
 
+// Function Declarations
 void publishTelemetry();
+
+// Function to calculate RMS current from CT Sensor with Dynamic DC Baseline & Zero-Clamping
+float readRMSCurrent(int pin) {
+  int samples = 100;
+  long rawSum = 0;
+
+  for (int i = 0; i < samples; i++) {
+    rawSum += analogRead(pin);
+    delayMicroseconds(100);
+  }
+
+  long rawAverage = rawSum / samples;
+
+  if (rawAverage < 800 || rawAverage > 3200) {
+    return 0.0;
+  }
+
+  long sum = 0;
+  for (int i = 0; i < samples; i++) {
+    int raw = analogRead(pin);
+    int centered = raw - rawAverage;
+    sum += (long)centered * centered;
+    delayMicroseconds(100);
+  }
+
+  float rmsRaw = sqrt((float)sum / samples);
+  float voltage = (rmsRaw / 4095.0) * 3.3;
+
+  if (voltage < 0.20) {
+    return 0.0;
+  }
+
+  float amps = voltage * 10.0;
+  if (amps < 0.5) {
+    amps = 0.0;
+  }
+  return amps;
+}
+
+// Function to perform Pre-Start Current Inspection
+bool checkCurrentSafetyBeforeStart() {
+  float i1 = readRMSCurrent(CT1_PIN);
+  float i2 = readRMSCurrent(CT2_PIN);
+  float i3 = readRMSCurrent(CT3_PIN);
+
+  // If current is unexpectedly high BEFORE starting (> 10.0A pre-start residual), short-circuit or grounding fault is present!
+  if (i1 > 10.0 || i2 > 10.0 || i3 > 10.0) {
+    Serial.println(">>> SAFETY INSPECTION FAILED: Pre-start current surge / short circuit detected!");
+    return false;
+  }
+  return true;
+}
+
+// Function to read Motor Body Temperature (°C) with Floating Pin Suppression
+float readMotorTemperature() {
+  int raw = analogRead(TEMP_PIN);
+  if (raw > 3600 || raw < 100) {
+    return 35.0;
+  }
+  float tempC = (raw / 4095.0) * 100.0;
+  return tempC;
+}
+
+void tripMotor(String reason) {
+  motorState = false;
+  digitalWrite(RELAY_PIN, RELAY_OFF);
+  Serial.print(">>> Motor Tripped: ");
+  Serial.println(reason);
+
+  String payload = "{\"status\":\"" + reason + "\"}";
+  mqttClient.publish(mqtt_topic_telemetry, payload.c_str());
+}
+
+void setMotorState(bool state) {
+  motorState = state;
+  digitalWrite(RELAY_PIN, state ? RELAY_ON : RELAY_OFF);
+  if (state) {
+    motorStartTime = millis();
+  }
+  Serial.print(">>> Relay Pin P5 (GPIO 5) set to: ");
+  Serial.println(state ? "RELAY_ON (LOW)" : "RELAY_OFF (HIGH)");
+}
 
 void callback(char* topic, byte* payload, unsigned int length) {
   String message = "";
@@ -98,7 +182,11 @@ void callback(char* topic, byte* payload, unsigned int length) {
   if (String(topic) == mqtt_topic_control) {
     if (upperMsg == "ON" || upperMsg == "START" || upperMsg == "1") {
       Serial.println(">>> Command matched: Turning MOTOR ON");
-      setMotorState(true);
+      if (checkCurrentSafetyBeforeStart()) {
+        setMotorState(true);
+      } else {
+        tripMotor("TRIPPED_FAULTY_CURRENT");
+      }
     } else if (upperMsg == "OFF" || upperMsg == "STOP" || upperMsg == "0") {
       Serial.println(">>> Command matched: Turning MOTOR OFF");
       setMotorState(false);
@@ -106,7 +194,11 @@ void callback(char* topic, byte* payload, unsigned int length) {
       autoStartEnabled = true;
       Serial.println(">>> Auto Start Motor ENABLED");
       if (!motorState) {
-        setMotorState(true);
+        if (checkCurrentSafetyBeforeStart()) {
+          setMotorState(true);
+        } else {
+          tripMotor("TRIPPED_FAULTY_CURRENT");
+        }
       }
     } else if (upperMsg == "AUTOSTART_OFF") {
       autoStartEnabled = false;
@@ -163,8 +255,14 @@ void reconnectMqtt() {
       mqttClient.subscribe(mqtt_topic_control);
 
       if (autoStartEnabled && !motorState) {
-        Serial.println(">>> Auto-Start Triggered: Connections OK, starting motor!");
-        setMotorState(true);
+        Serial.println(">>> Auto-Start Active: Performing Pre-Start Current Safety Inspection...");
+        if (checkCurrentSafetyBeforeStart()) {
+          Serial.println(">>> Pre-Start Inspection Passed! Starting motor...");
+          setMotorState(true);
+        } else {
+          Serial.println(">>> Pre-Start Inspection FAILED! Abnormal current detected before start.");
+          tripMotor("TRIPPED_FAULTY_CURRENT");
+        }
       }
 
       publishTelemetry();
@@ -282,8 +380,12 @@ void loop() {
       int currentMin = timeinfo.tm_min;
 
       if (currentHour == SCHEDULE_START_HOUR && currentMin == SCHEDULE_START_MIN && !motorState) {
-        Serial.println(">>> SCHEDULE TRIGGER: Starting Motor!");
-        setMotorState(true);
+        Serial.println(">>> SCHEDULE TRIGGER: Inspecting current safety...");
+        if (checkCurrentSafetyBeforeStart()) {
+          setMotorState(true);
+        } else {
+          tripMotor("TRIPPED_FAULTY_CURRENT");
+        }
         publishTelemetry();
       }
       else if (currentHour == SCHEDULE_STOP_HOUR && currentMin == SCHEDULE_STOP_MIN && motorState) {
@@ -319,74 +421,6 @@ void loop() {
       }
     }
   }
-}
-
-// Function to calculate RMS current from CT Sensor with Dynamic DC Baseline & Zero-Clamping
-float readRMSCurrent(int pin) {
-  int samples = 100;
-  long rawSum = 0;
-
-  for (int i = 0; i < samples; i++) {
-    rawSum += analogRead(pin);
-    delayMicroseconds(100);
-  }
-
-  long rawAverage = rawSum / samples;
-
-  if (rawAverage < 800 || rawAverage > 3200) {
-    return 0.0;
-  }
-
-  long sum = 0;
-  for (int i = 0; i < samples; i++) {
-    int raw = analogRead(pin);
-    int centered = raw - rawAverage;
-    sum += (long)centered * centered;
-    delayMicroseconds(100);
-  }
-
-  float rmsRaw = sqrt((float)sum / samples);
-  float voltage = (rmsRaw / 4095.0) * 3.3;
-
-  if (voltage < 0.20) {
-    return 0.0;
-  }
-
-  float amps = voltage * 10.0;
-  if (amps < 0.5) {
-    amps = 0.0;
-  }
-  return amps;
-}
-
-// Function to read Motor Body Temperature (°C) with Floating Pin Suppression
-float readMotorTemperature() {
-  int raw = analogRead(TEMP_PIN);
-  if (raw > 3600 || raw < 100) {
-    return 35.0;
-  }
-  float tempC = (raw / 4095.0) * 100.0;
-  return tempC;
-}
-
-void tripMotor(String reason) {
-  motorState = false;
-  digitalWrite(RELAY_PIN, RELAY_OFF);
-  Serial.print(">>> Motor Tripped: ");
-  Serial.println(reason);
-
-  String payload = "{\"status\":\"" + reason + "\"}";
-  mqttClient.publish(mqtt_topic_telemetry, payload.c_str());
-}
-
-void setMotorState(bool state) {
-  motorState = state;
-  digitalWrite(RELAY_PIN, state ? RELAY_ON : RELAY_OFF);
-  if (state) {
-    motorStartTime = millis();
-  }
-  Serial.print(">>> Relay Pin P5 (GPIO 5) set to: ");
-  Serial.println(state ? "RELAY_ON (LOW)" : "RELAY_OFF (HIGH)");
 }
 
 void publishTelemetry() {
