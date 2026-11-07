@@ -81,8 +81,8 @@
                     <p id="phaseBalanceVal" class="text-xs font-bold text-emerald-400 mt-0.5">100% Balanced</p>
                 </div>
                 <div class="bg-slate-900/60 p-1.5 rounded-lg border border-slate-700/60">
-                    <p class="text-slate-400 text-[8px] font-medium">Thermal Stress</p>
-                    <p id="thermalStressVal" class="text-xs font-bold text-emerald-400 mt-0.5">Normal (35°C)</p>
+                    <p class="text-slate-400 text-[8px] font-medium">Thermal State</p>
+                    <p id="thermalStressVal" class="text-xs font-bold text-emerald-400 mt-0.5">Normal</p>
                 </div>
                 <div class="bg-slate-900/60 p-1.5 rounded-lg border border-slate-700/60">
                     <p class="text-slate-400 text-[8px] font-medium">Overload Risk</p>
@@ -137,7 +137,7 @@
             </div>
         </div>
 
-        <!-- Toggles & Time Scheduler Controls Row (High Contrast Toggle Switches - ZERO Overlap!) -->
+        <!-- Toggles & Time Scheduler Controls Row -->
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
             <!-- Auto-Start Toggle Switch -->
             <div id="autoStartCard" class="bg-slate-800 border border-slate-700 px-3 py-2.5 rounded-xl shadow flex items-center justify-between gap-2 transition-colors duration-300">
@@ -163,7 +163,7 @@
                 </label>
             </div>
 
-            <!-- Time Scheduler Controls (Stacked Layout: Header Top, Inputs Bottom) -->
+            <!-- Time Scheduler Controls -->
             <div id="scheduleCard" class="bg-slate-800 border border-slate-700 px-3 py-1.5 rounded-xl shadow flex flex-col justify-between gap-1 transition-colors duration-300">
                 <div class="flex items-center justify-between w-full">
                     <div class="flex items-center gap-1">
@@ -281,17 +281,17 @@
         function evaluateMotorHealth(i1, i2, i3, tempC, status) {
             let score = 100;
             let phaseBalanceText = "100% Balanced";
-            let thermalText = `Normal (${tempC}°C)`;
+            let thermalStateText = "Normal";
             let overloadRiskText = "Low (0%)";
             let insight = "System Optimal & Healthy";
 
             if (tempC > 65) {
                 score -= 30;
-                thermalText = `HIGH (${tempC}°C)`;
+                thermalStateText = "HIGH";
                 insight = "High motor body temperature!";
             } else if (tempC > 50) {
                 score -= 10;
-                thermalText = `Warm (${tempC}°C)`;
+                thermalStateText = "Warm";
             }
 
             const maxI = Math.max(i1, i2, i3);
@@ -337,7 +337,7 @@
             const insightEl = document.getElementById('healthInsightVal');
 
             balanceEl.innerText = phaseBalanceText;
-            thermalEl.innerText = thermalText;
+            thermalEl.innerText = thermalStateText;
             overloadEl.innerText = overloadRiskText;
             insightEl.innerText = insight;
 
