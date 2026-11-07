@@ -114,7 +114,7 @@
             </div>
         </div>
 
-        <!-- Hardware Status Row (Always Prominently Displays Live IP!) -->
+        <!-- Hardware Status Row -->
         <div id="hardwareBar" class="bg-slate-800 border border-slate-700 px-2.5 py-1.5 rounded-xl shadow flex items-center justify-between gap-2 text-xs flex-wrap transition-colors duration-300">
             <div class="flex items-center gap-1.5 flex-wrap">
                 <span id="espLabel" class="text-slate-400 font-semibold text-[10px]">ESP32:</span>
@@ -122,7 +122,6 @@
                 <div id="wifiSsidContainer" class="hidden font-semibold text-emerald-400 bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-500/30 text-[9px]">
                     📶 <span id="wifiSsid" class="text-white font-bold">1+10R</span>
                 </div>
-                <!-- Always Prominently Displayed Local IP Badge -->
                 <div id="ipContainer" class="font-mono font-bold text-blue-300 bg-blue-950/40 px-2 py-0.5 rounded border border-blue-500/30 text-[9px]">
                     🌐 IP: <span id="espIpBadge">10.146.68.77</span>
                 </div>
@@ -138,45 +137,45 @@
             </div>
         </div>
 
-        <!-- Toggles & Time Scheduler Controls Row (Modern Toggle Switches) -->
+        <!-- Toggles & Time Scheduler Controls Row (High Contrast Toggle Switches - ZERO Overlap!) -->
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
             <!-- Auto-Start Toggle Switch -->
-            <div id="autoStartCard" class="bg-slate-800 border border-slate-700 px-3 py-2 rounded-xl shadow flex items-center justify-between gap-2 transition-colors duration-300">
+            <div id="autoStartCard" class="bg-slate-800 border border-slate-700 px-3 py-2.5 rounded-xl shadow flex items-center justify-between gap-2 transition-colors duration-300">
                 <div class="flex items-center gap-1.5">
                     <span class="text-sm">⚡</span>
                     <h4 id="autoStartTitle" class="font-bold text-white text-[10px]">Auto Start</h4>
                 </div>
-                <label class="relative inline-flex items-center cursor-pointer">
+                <label class="relative inline-flex items-center cursor-pointer select-none">
                     <input type="checkbox" id="autoStartToggle" onchange="toggleAutoStart()" aria-label="Auto Start Toggle" class="sr-only peer">
-                    <div class="w-8 h-4.5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-emerald-500"></div>
+                    <div class="w-9 h-5 bg-slate-400 dark:bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500 shadow-inner"></div>
                 </label>
             </div>
 
             <!-- Dry-Run Protection Toggle Switch -->
-            <div id="dryRunCard" class="bg-slate-800 border border-slate-700 px-3 py-2 rounded-xl shadow flex items-center justify-between gap-2 transition-colors duration-300">
+            <div id="dryRunCard" class="bg-slate-800 border border-slate-700 px-3 py-2.5 rounded-xl shadow flex items-center justify-between gap-2 transition-colors duration-300">
                 <div class="flex items-center gap-1.5">
                     <span class="text-sm">💧</span>
                     <h4 id="dryRunTitle" class="font-bold text-white text-[10px]">Dry-Run</h4>
                 </div>
-                <label class="relative inline-flex items-center cursor-pointer">
+                <label class="relative inline-flex items-center cursor-pointer select-none">
                     <input type="checkbox" id="dryRunToggle" onchange="toggleDryRun()" aria-label="Dry-Run Protection Toggle" class="sr-only peer">
-                    <div class="w-8 h-4.5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-emerald-500"></div>
+                    <div class="w-9 h-5 bg-slate-400 dark:bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500 shadow-inner"></div>
                 </label>
             </div>
 
-            <!-- Time Scheduler Controls -->
+            <!-- Time Scheduler Controls (Stacked Layout: Header Top, Inputs Bottom) -->
             <div id="scheduleCard" class="bg-slate-800 border border-slate-700 px-3 py-1.5 rounded-xl shadow flex flex-col justify-between gap-1 transition-colors duration-300">
                 <div class="flex items-center justify-between w-full">
                     <div class="flex items-center gap-1">
                         <span class="text-xs">⏰</span>
                         <h4 class="font-bold text-white text-[10px]">Schedule</h4>
                     </div>
-                    <label class="relative inline-flex items-center cursor-pointer">
+                    <label class="relative inline-flex items-center cursor-pointer select-none">
                         <input type="checkbox" id="schedToggle" onchange="toggleSchedule()" aria-label="Schedule Toggle" class="sr-only peer">
-                        <div class="w-8 h-4.5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-emerald-500"></div>
+                        <div class="w-9 h-5 bg-slate-400 dark:bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500 shadow-inner"></div>
                     </label>
                 </div>
-                <div class="flex items-center justify-center gap-1 w-full">
+                <div class="flex items-center justify-center gap-1 w-full mt-0.5">
                     <input type="time" id="schedStartTime" value="06:30" aria-label="Schedule Start Time" class="bg-slate-900 border border-slate-700 text-white text-[9px] px-1 py-0.5 rounded font-mono text-center flex-1">
                     <span class="text-[8px] text-slate-400">to</span>
                     <input type="time" id="schedStopTime" value="18:00" aria-label="Schedule Stop Time" class="bg-slate-900 border border-slate-700 text-white text-[9px] px-1 py-0.5 rounded font-mono text-center flex-1">
@@ -413,8 +412,8 @@
                 footer.className = "bg-slate-800 border-t border-slate-700 py-1 px-4 text-center text-[8px] text-slate-500 font-medium transition-colors duration-300";
                 themeSelect.className = "bg-slate-700 text-slate-100 text-[9px] px-2 py-0.5 rounded-lg border border-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer shadow-sm";
                 hardwareBar.className = "bg-slate-800 border border-slate-700 px-2.5 py-1.5 rounded-xl shadow flex items-center justify-between gap-2 text-xs flex-wrap transition-colors duration-300";
-                autoStartCard.className = "bg-slate-800 border border-slate-700 px-3 py-2 rounded-xl shadow flex items-center justify-between gap-2 transition-colors duration-300";
-                dryRunCard.className = "bg-slate-800 border border-slate-700 px-3 py-2 rounded-xl shadow flex items-center justify-between gap-2 transition-colors duration-300";
+                autoStartCard.className = "bg-slate-800 border border-slate-700 px-3 py-2.5 rounded-xl shadow flex items-center justify-between gap-2 transition-colors duration-300";
+                dryRunCard.className = "bg-slate-800 border border-slate-700 px-3 py-2.5 rounded-xl shadow flex items-center justify-between gap-2 transition-colors duration-300";
                 scheduleCard.className = "bg-slate-800 border border-slate-700 px-3 py-1.5 rounded-xl shadow flex flex-col justify-between gap-1 transition-colors duration-300";
                 healthPanel.className = "bg-slate-800 border border-slate-700 p-2 rounded-xl shadow transition-colors duration-300";
                 telemetryHeading.className = "text-[9px] font-bold mb-1 text-slate-300 uppercase tracking-wider";
@@ -435,8 +434,8 @@
                 footer.className = "bg-white border-t border-slate-200 py-1 px-4 text-center text-[8px] text-slate-600 font-semibold transition-colors duration-300";
                 themeSelect.className = "bg-slate-100 text-slate-900 text-[9px] px-2 py-0.5 rounded-lg border border-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer shadow-sm font-semibold";
                 hardwareBar.className = "bg-white border border-slate-200 px-2.5 py-1.5 rounded-xl shadow-sm flex items-center justify-between gap-2 text-xs flex-wrap transition-colors duration-300";
-                autoStartCard.className = "bg-white border border-slate-200 px-3 py-2 rounded-xl shadow-sm flex items-center justify-between gap-2 transition-colors duration-300";
-                dryRunCard.className = "bg-white border border-slate-200 px-3 py-2 rounded-xl shadow-sm flex items-center justify-between gap-2 transition-colors duration-300";
+                autoStartCard.className = "bg-white border border-slate-200 px-3 py-2.5 rounded-xl shadow-sm flex items-center justify-between gap-2 transition-colors duration-300";
+                dryRunCard.className = "bg-white border border-slate-200 px-3 py-2.5 rounded-xl shadow-sm flex items-center justify-between gap-2 transition-colors duration-300";
                 scheduleCard.className = "bg-white border border-slate-200 px-3 py-1.5 rounded-xl shadow-sm flex flex-col justify-between gap-1 transition-colors duration-300";
                 healthPanel.className = "bg-white border border-slate-200 p-2 rounded-xl shadow-sm transition-colors duration-300";
                 telemetryHeading.className = "text-[9px] font-bold mb-1 text-slate-800 uppercase tracking-wider";
