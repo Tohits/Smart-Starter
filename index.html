@@ -20,6 +20,9 @@
 </head>
 <body class="bg-slate-900 text-slate-100 dark:bg-slate-900 dark:text-slate-100 h-screen overflow-hidden flex flex-col justify-between transition-colors duration-300">
 
+    <!-- Floating Pop-Up SMS / Toast Alert Container -->
+    <div id="toastContainer" class="fixed top-3 left-1/2 transform -translate-x-1/2 z-50 flex flex-col gap-2 pointer-events-none max-w-sm w-full px-4"></div>
+
     <!-- Header -->
     <header class="bg-slate-800 border-b border-slate-700 py-1.5 px-4 shadow-md transition-colors duration-300">
         <div class="max-w-4xl mx-auto flex flex-row justify-between items-center gap-2">
@@ -252,7 +255,7 @@
         Smart Starter Global Cloud Dashboard &bull; Powered by HiveMQ Cloud & Vercel
     </footer>
 
-    <!-- Global Cloud MQTT WebSockets Client -->
+    <!-- Global Cloud MQTT WebSockets Client & Pop-Up SMS Toast System -->
     <script>
         let currentAutoStart = false;
         let currentDryRun = true;
@@ -261,6 +264,46 @@
         let lastNotifiedStatus = '';
         let commandTimeoutId = null;
         let espLocalIp = '10.146.68.77';
+
+        // --- Pop-Up SMS / Toast Alert Notification System ---
+        function showToast(title, message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            if (!container) return;
+
+            const toast = document.createElement('div');
+            let borderClass = 'border-blue-500 bg-slate-800/95 text-blue-300';
+            let icon = 'ℹ️';
+
+            if (type === 'success') {
+                borderClass = 'border-emerald-500 bg-slate-800/95 text-emerald-300';
+                icon = '🟢';
+            } else if (type === 'error' || type === 'fault') {
+                borderClass = 'border-rose-500 bg-rose-950/95 text-rose-300 animate-bounce';
+                icon = '🚨';
+            } else if (type === 'warning') {
+                borderClass = 'border-amber-500 bg-slate-800/95 text-amber-300';
+                icon = '⚠️';
+            }
+
+            toast.className = `pointer-events-auto border-2 ${borderClass} p-2.5 rounded-xl shadow-2xl backdrop-blur-md flex items-center justify-between gap-3 text-xs transition-all duration-300 transform translate-y-0 opacity-100 font-bold`;
+            toast.innerHTML = `
+                <div class="flex items-center gap-2">
+                    <span class="text-sm">${icon}</span>
+                    <div>
+                        <p class="font-black text-[11px] leading-tight">${title}</p>
+                        <p class="text-[9px] font-semibold opacity-90 leading-tight mt-0.5">${message}</p>
+                    </div>
+                </div>
+                <button onclick="this.parentElement.remove()" class="text-slate-400 hover:text-white font-bold ml-2">✕</button>
+            `;
+
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', '-translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
+        }
 
         function openOtaModal() {
             document.getElementById('otaModal').classList.remove('hidden');
@@ -358,6 +401,7 @@
             if ('Notification' in window) {
                 Notification.requestPermission().then(permission => {
                     if (permission === 'granted') {
+                        showToast("Notifications Enabled", "Mobile push alerts are active!", "success");
                         triggerMobileNotification("Smart Starter App", "Mobile push notifications enabled!", "system-status");
                     }
                 });
@@ -620,6 +664,7 @@
         client.on('connect', () => {
             console.log('Connected to HiveMQ Cloud via WebSockets');
             setConnectionState('connected', 'Cloud Live');
+            showToast("Cloud Connected", "Real-time MQTT telemetry active", "success");
             client.subscribe('smartstarter/motor1/telemetry', (err) => {
                 if (err) console.error('Subscription error:', err);
             });
@@ -652,14 +697,17 @@
                     const tempC = data.temperature || 35.0;
                     evaluateMotorHealth(i1, i2, i3, tempC, data.status);
 
-                    // Trigger Native Mobile System Notification only on status changes or faults
+                    // Trigger Pop-Up SMS Toast Notification only on status changes or faults
                     if (data.status !== lastNotifiedStatus) {
                         lastNotifiedStatus = data.status;
                         if (data.status.startsWith('TRIPPED')) {
+                            showToast("🚨 Smart Starter Fault Alert!", `Motor tripped due to: ${data.status}`, "fault");
                             triggerMobileNotification("🚨 Smart Starter Fault Alert!", `Motor tripped due to: ${data.status}`, "motor-fault");
                         } else if (data.status === 'ON') {
+                            showToast("⚙️ Motor Starter Status", "Motor is now RUNNING 🟢", "success");
                             triggerMobileNotification("⚙️ Smart Starter Status", "Motor is now RUNNING 🟢", "motor-status");
                         } else if (data.status === 'OFF') {
+                            showToast("⚙️ Motor Starter Status", "Motor is now STOPPED 🔴", "info");
                             triggerMobileNotification("⚙️ Smart Starter Status", "Motor is now STOPPED 🔴", "motor-status");
                         }
                     }
@@ -776,6 +824,7 @@
         function sendControl(state) {
             const statusText = document.getElementById('statusText');
             statusText.innerText = state + " (Sending...)";
+            showToast("Sending Command", `Requesting Motor ${state}...`, "info");
 
             if (commandTimeoutId) clearTimeout(commandTimeoutId);
 
@@ -800,6 +849,8 @@
             const toggle = document.getElementById('autoStartToggle');
             const nextState = toggle.checked;
             const command = nextState ? 'AUTOSTART_ON' : 'AUTOSTART_OFF';
+            showToast("Auto-Start Mode", nextState ? "Auto-Start Enabled 🟢" : "Auto-Start Disabled ⚪", "info");
+
             client.publish('smartstarter/motor1/control', command, { qos: 1 }, (err) => {
                 if (err) {
                     alert("Failed to toggle Auto-Start: " + err.message);
@@ -814,6 +865,8 @@
             const toggle = document.getElementById('dryRunToggle');
             const nextState = toggle.checked;
             const command = nextState ? 'DRYRUN_ON' : 'DRYRUN_OFF';
+            showToast("Dry-Run Protection", nextState ? "Dry-Run Trip Active 🟢" : "Dry-Run Trip Disabled ⚪", "info");
+
             client.publish('smartstarter/motor1/control', command, { qos: 1 }, (err) => {
                 if (err) {
                     alert("Failed to toggle Dry-Run Protection: " + err.message);
@@ -832,6 +885,7 @@
 
             if (nextState) {
                 const command = `SCHEDULE_CONFIG:${startTime},${stopTime}`;
+                showToast("Time Scheduler", `Schedule Active: ${startTime} to ${stopTime} 🟢`, "info");
                 client.publish('smartstarter/motor1/control', command, { qos: 1 }, (err) => {
                     if (err) {
                         alert("Failed to configure schedule: " + err.message);
@@ -839,6 +893,7 @@
                     }
                 });
             } else {
+                showToast("Time Scheduler", "Schedule Disabled ⚪", "info");
                 client.publish('smartstarter/motor1/control', 'SCHEDULE_OFF', { qos: 1 }, (err) => {
                     if (err) {
                         alert("Failed to disable schedule: " + err.message);
@@ -850,6 +905,7 @@
 
         function rebootEsp() {
             if (confirm("Are you sure you want to reboot the ESP32 motor starter?")) {
+                showToast("Hardware Action", "Rebooting ESP32 Controller...", "warning");
                 client.publish('smartstarter/motor1/control', 'REBOOT', { qos: 1 }, (err) => {
                     if (err) {
                         alert("Failed to send reboot command: " + err.message);
