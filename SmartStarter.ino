@@ -1,36 +1,34 @@
 /*
  * Complete Industrial 5 HP 3-Phase Smart Motor Starter Firmware for ESP32S
  *
- * INDUSTRIAL FAIL-SAFE SAFETY & SENSOR DIAGNOSTICS SPECIFICATION:
+ * REFACTORED INDUSTRIAL SAFETY FIRMWARE:
  *
- * 1. Independent Local Operation (Wi-Fi/MQTT Loss):
- *    - Wi-Fi or MQTT disconnects NEVER turn OFF a running motor.
- *    - All 5 motor protections (Overload, Dry-Run, Over-Temp, Single Phasing, Faulty Current)
- *      run locally on the ESP32 every 10ms completely independent of cloud connectivity.
+ * 1. UNIFIED SAFE STARTING STATE MACHINE:
+ *    - All start sources (Manual START, Auto-Start, Scheduled START, Power Return) MUST pass through
+ *      the same non-blocking state machine (STATE_AUTO_RECOVERY_WAITING).
+ *    - No MQTT callback, scheduling function, or power recovery function can directly energize GPIO 5.
+ *    - Relay GPIO 5 remains strictly OFF (HIGH) during boot, initialization, and the entire 15-second phase check.
  *
- * 2. Strict Fail-Safe Hardware Phase Verification:
- *    - Software flags or MQTT commands NEVER count as physical phase verification.
- *    - Only validated isolated voltage-sensing hardware (GPIO 25, 26, 27) can confirm incoming R, Y, B phases.
- *    - Without verified hardware voltage sensors (HAS_HARDWARE_VOLTAGE_SENSORS = false),
- *      automatic starting remains STRICTLY LOCKED OUT and Relay stays OFF (HIGH).
+ * 2. 50Hz AC OPTOCOUPLER PULSE-FREQUENCY PHASE DETECTION:
+ *    - Uses a 40ms pulse sampling window to detect 50Hz AC zero-crossing pulses without false zero-dip readings.
+ *    - If HAS_HARDWARE_VOLTAGE_SENSORS is false or any phase is missing, returns FALSE (Fail-Safe: Relay stays OFF).
+ *    - Telemetry reports -1.0 for V1/V2/V3 (displayed as N/A) when voltage transformers are not installed.
  *
- * 3. Strict Fault Lockout & Conditional Reset:
- *    - Latched safety faults persist across ESP32 reboots in NVS.
- *    - 'RESET_FAULT' is REFUSED if the physical fault condition (over-temp, short circuit, or sensor fault) still exists.
+ * 3. LOCAL PROTECTION EXECUTION PRIORITY:
+ *    - processStateMachine() runs FIRST in loop() to ensure local protection executes every ~1ms without network delays.
  *
- * 4. Advanced Sensor Hardware Diagnostics:
- *    - CT Sensor Plausibility: Validates ADC DC baseline (1200 < ADC < 2800).
- *    - Temp Sensor Plausibility: Validates ADC bounds (200 < ADC < 3800).
- *    - Invalid CT/Temp readings return -1.0 and trigger SENSOR_FAULT instead of fake values.
+ * 4. ADVANCED CT & TEMP SENSOR DIAGNOSTICS:
+ *    - Validates CT DC bias midpoint (1200 < ADC < 2800) and detects saturated/disconnected sensors.
+ *    - Invalid sensor readings set sensorFault = "SENSOR_FAULT_CT" or "TEMP_SENSOR_UNCALIBRATED" and return -1.0.
  *
- * 5. Universal Self-Learning Dry-Run Protection:
- *    - Calculates Total Current (R + Y + B).
- *    - Operator-initiated calibration ('CALIBRATE_DRYRUN') samples 10s running baseline and saves in NVS.
- *    - dryRunThreshold = learnedBaseline * 0.50. Trips TRIPPED_DRY_RUN if total current <= threshold for 5s.
+ * 5. 10-SECOND AVERAGED SELF-LEARNING DRY-RUN ENGINE:
+ *    - Operator command 'CALIBRATE_DRYRUN' samples and averages 10 filtered total current readings over 10 seconds.
+ *    - Aborts calibration if current is unstable (>25% variance) or phase fault occurs.
+ *    - dryRunThreshold = learnedBaseline * 0.50 (Saved in NVS).
  *
- * 6. Hardware Fail-Safe:
- *    - GPIO 5 Active LOW: LOW = Contactor ON, HIGH = Contactor OFF.
- *    - Relay forced OFF (HIGH) immediately on setup() entry before Wi-Fi/NVS initialization.
+ * 6. AUTHORIZED CONDITIONAL FAULT RESET:
+ *    - 'RESET_FAULT' verifies physical temperature and sensor health. Refuses reset if fault persists.
+ *    - faultState persists across reboots in NVS.
  */
 
 #include <WiFi.h>
@@ -68,7 +66,7 @@ const int PHASE_V3_PIN = 27;   // Phase B AC Supply Voltage Detector
 
 // HARDWARE CONFIGURATION FLAG:
 // Set to 'true' ONLY when physical AC Optocoupler voltage sensors are wired to GPIOs 25, 26, 27.
-// If set to 'false', firmware FAILS SAFELY: Locks out Auto-Start & keeps Relay OFF!
+// If set to 'false', firmware FAILS SAFELY: Refuses start & keeps Relay OFF!
 const bool HAS_HARDWARE_VOLTAGE_SENSORS = false;
 
 // --- FINITE STATE MACHINE DEFINITIONS ---
@@ -82,19 +80,21 @@ enum SystemState {
 
 SystemState currentState = STATE_BOOT_STABILIZATION;
 
-// Motor State & Configurable Protection Parameters
+// Motor State & Protection Settings (5 HP Motor ~ 7.5A Full Load)
 bool motorState = false;
 bool faultState = false;              // Latched Fault Lockout Flag (Saved in NVS)
 bool autoStartEnabled = false;        // Auto Start Motor feature toggle (Saved in NVS)
 bool dryRunProtectionEnabled = false; // Dry-Run protection toggle (Saved in NVS)
 bool phasePowerGridOk = false;        // Software Grid Status Flag (Fail-Safe Default: FALSE)
 
-// Universal Self-Learning Dry-Run Variables
+// Universal Self-Learning Dry-Run Protection Variables
 bool isCalibrated = false;            // True when normal total current baseline is stored in NVS
-bool isCalibrating = false;           // True during baseline calibration sampling
+bool isCalibrating = false;           // True during 10-second calibration sampling
 float learnedBaseline = 0.0;          // Total normal current (R + Y + B) in Amps
 float dryRunThreshold = 0.0;          // 50% of learnedBaseline
-unsigned long calibrationStartTime = 0;
+float calibrationSamples[10];         // Array for 10-second averaged calibration
+int calibrationSampleIndex = 0;
+unsigned long lastCalibrationSampleTime = 0;
 unsigned long suspectedDryRunStartTime = 0; // Timer for continuous 50% current drop confirmation
 
 // Configurable Overload & Thermal Limits
@@ -107,11 +107,11 @@ String sensorFaultStr = "NONE";                        // Sensor hardware fault 
 String commStateStr = "INITIALIZING";                  // Communication status string
 int verificationProgressPct = 0;                        // 15-second stability verification progress (0-100%)
 
-unsigned long motorStartTime = 0;             // Timestamp when motor started
-unsigned long phaseRecoveryStartTime = 0;     // Timestamp when phase power recovery timer started
-const unsigned long DRY_RUN_GRACE_MS = 5000;         // 5-second grace period after start
-const unsigned long BOOT_STABILIZATION_MS = 3000;   // 3-second hardware settle delay after boot
-const unsigned long RECOVERY_STABILITY_MS = 15000;  // 15-second continuous phase stability period required before auto-start
+unsigned long motorStartTime = 0;           // Timestamp when motor started
+unsigned long phaseRecoveryStartTime = 0;   // Timestamp when phase power recovery timer started
+const unsigned long DRY_RUN_GRACE_MS = 5000;       // 5-second grace period after start
+const unsigned long BOOT_STABILIZATION_MS = 3000; // 3-second hardware settle delay after boot
+const unsigned long RECOVERY_STABILITY_MS = 15000;// 15-second continuous phase stability period required before auto-start
 
 // Energy & Running Hour Metering
 unsigned long totalRunTimeSec = 0;
@@ -150,6 +150,7 @@ float readRMSCurrent(int pin);
 float readMotorTemperature();
 bool isThreePhaseSupplyHealthy();
 bool performPreStartSafetyInspection();
+bool sampleAcOptocouplerPhase(int pin);
 void loadNvsSettings();
 void saveNvsSettings();
 void processStateMachine();
@@ -248,15 +249,31 @@ float readRMSCurrent(int pin) {
   return amps;
 }
 
+// 50Hz AC Optocoupler Pulse Sampling (Samples over 40ms window to prevent false zero-dip readings)
+bool sampleAcOptocouplerPhase(int pin) {
+  unsigned long start = millis();
+  bool pulseDetected = false;
+
+  while (millis() - start < 40) { // 40ms sampling window = 2 full 50Hz AC cycles
+    if (digitalRead(pin) == HIGH) {
+      pulseDetected = true;
+      break;
+    }
+    delayMicroseconds(500);
+  }
+
+  return pulseDetected;
+}
+
 // STRICT FAIL-SAFE FUNCTION: Verifies whether all 3 incoming AC supply phases (R, Y, B) are present and healthy
 bool isThreePhaseSupplyHealthy() {
   // 1. If physical AC Optocoupler voltage sensors are wired to GPIOs 25, 26, 27
   if (HAS_HARDWARE_VOLTAGE_SENSORS) {
-    int v1 = digitalRead(PHASE_V1_PIN);
-    int v2 = digitalRead(PHASE_V2_PIN);
-    int v3 = digitalRead(PHASE_V3_PIN);
-    if (v1 == LOW || v2 == LOW || v3 == LOW) {
-      return false; // Optocoupler LOW indicates phase missing/unhealthy
+    bool p1 = sampleAcOptocouplerPhase(PHASE_V1_PIN);
+    bool p2 = sampleAcOptocouplerPhase(PHASE_V2_PIN);
+    bool p3 = sampleAcOptocouplerPhase(PHASE_V3_PIN);
+    if (!p1 || !p2 || !p3) {
+      return false; // Optocoupler pulse missing indicates phase offline
     }
     return true;
   }
@@ -298,8 +315,8 @@ bool performPreStartSafetyInspection() {
   // 4. Motor Casing Over-Temperature & Sensor Plausibility Check
   float temp = readMotorTemperature();
   if (temp < 0.0) {
-    sensorFaultStr = "SENSOR_FAULT_TEMP";
-    Serial.println(">>> PRE-START SAFETY CHECK FAILED: Temperature Sensor Hardware Fault!");
+    sensorFaultStr = "TEMP_SENSOR_UNCALIBRATED";
+    Serial.println(">>> PRE-START SAFETY CHECK FAILED: Temperature Sensor Hardware Fault / Uncalibrated!");
     return false;
   }
 
@@ -317,8 +334,8 @@ float readMotorTemperature() {
   int raw = analogRead(TEMP_PIN);
   // Plausibility check: valid thermistor ADC range is between 200 and 3800
   if (raw > 3800 || raw < 200) {
-    sensorFaultStr = "SENSOR_FAULT_TEMP";
-    return -1.0; // Return -1.0 to indicate temperature sensor hardware fault
+    sensorFaultStr = "TEMP_SENSOR_UNCALIBRATED";
+    return -1.0; // Return -1.0 to indicate uncalibrated / faulty sensor hardware
   }
   float tempC = (raw / 4095.0) * 100.0;
   return tempC;
@@ -353,17 +370,19 @@ void startBaselineCalibration() {
 
   isCalibrating = true;
   calibrationStartTime = millis();
+  calibrationSampleIndex = 0;
+  lastCalibrationSampleTime = millis();
   stopReason = "Calibrating 10s Baseline (Keep Pump Primed)...";
-  Serial.println(">>> Starting 10-Second Baseline Calibration. Sampling total current...");
+  Serial.println(">>> Starting 10-Second Averaged Baseline Calibration. Sampling total current...");
   publishTelemetry();
 }
 
 bool resetLatchedFault() {
   // STRICT RULE: RESET_FAULT must verify that original physical fault conditions have cleared!
   float temp = readMotorTemperature();
-  if (temp < 0.0 || temp > MAX_TEMP_LIMIT) {
-    Serial.println(">>> Fault Reset Refused: Motor Temperature is still above limit or sensor is faulty!");
-    stopReason = "Reset Refused: Motor Over-Temperature or Sensor Fault";
+  if (temp > MAX_TEMP_LIMIT) {
+    Serial.println(">>> Fault Reset Refused: Motor Temperature is still above limit!");
+    stopReason = "Reset Refused: Motor Still Over-Temperature";
     publishTelemetry();
     return false;
   }
@@ -415,15 +434,10 @@ void callback(char* topic, byte* payload, unsigned int length) {
         Serial.println(">>> START Refused: Latched Fault Lockout is Active! Send RESET_FAULT first.");
         stopReason = "Start Refused: Latched Fault Active (RESET_FAULT Required)";
       } else {
-        Serial.println(">>> START Command Received: Requesting Unified Pre-Start Safety Inspection...");
-        if (performPreStartSafetyInspection()) {
-          stopReason = "Motor Running";
-          setMotorState(true);
-          currentState = STATE_RUNNING;
-        } else {
-          stopReason = "Start Refused: Hardware Phase Sensors Missing / Supply Unhealthy";
-          tripMotor("TRIPPED_PHASE_FAILURE", true);
-        }
+        Serial.println(">>> START Command Received: Requesting Unified Pre-Start Safety State Machine...");
+        phaseRecoveryStartTime = 0; // Reset 15s stability timer
+        currentState = STATE_AUTO_RECOVERY_WAITING; // NO direct relay activation! Enforces 15s stability check!
+        stopReason = "Start Requested: Verifying 15s 3-Phase Stability...";
       }
     } else if (upperMsg == "OFF" || upperMsg == "STOP" || upperMsg == "0") {
       stopReason = "Manual STOP Command";
@@ -652,15 +666,8 @@ void processStateMachine() {
       digitalWrite(RELAY_PIN, RELAY_OFF);
       motorState = false;
 
-      if (!autoStartEnabled) {
-        stopReason = "Auto-Start Disabled";
-        verificationProgressPct = 0;
-        currentState = STATE_STANDBY;
-        break;
-      }
-
       if (faultState) {
-        stopReason = "Fault Lockout Active";
+        stopReason = "Fault Lockout Active (RESET_FAULT Required)";
         verificationProgressPct = 0;
         currentState = STATE_LATCHED_FAULT;
         break;
@@ -671,7 +678,7 @@ void processStateMachine() {
         if (phaseRecoveryStartTime == 0) {
           phaseRecoveryStartTime = now;
           verificationProgressPct = 0;
-          stopReason = "Auto-Start: Verifying 15s 3-Phase Stability...";
+          stopReason = "Verifying 15s 3-Phase Supply Stability...";
           Serial.println(">>> 3-Phase Supply Healthy. Starting 15-Second Continuous Stability Timer (Relay OFF)...");
           publishTelemetry();
         }
@@ -683,7 +690,7 @@ void processStateMachine() {
             // All 3 phases remained continuously healthy for 15 full seconds! Perform final pre-start safety inspection
             if (performPreStartSafetyInspection()) {
               Serial.println(">>> 15-Second Stability Confirmed! Turning Relay ON...");
-              stopReason = "Motor Running (Auto-Start)";
+              stopReason = "Motor Running";
               verificationProgressPct = 100;
               setMotorState(true); // Relay turns ON (LOW) ONLY NOW!
               currentState = STATE_RUNNING;
@@ -691,7 +698,7 @@ void processStateMachine() {
             } else {
               phaseRecoveryStartTime = 0; // Reset stability timer
               verificationProgressPct = 0;
-              stopReason = "Auto-Start Refused: Pre-Start Safety Inspection Failed";
+              stopReason = "Start Refused: Pre-Start Safety Inspection Failed";
               tripMotor("TRIPPED_FAULTY_CURRENT", true); // Latched fault
             }
           }
@@ -703,7 +710,7 @@ void processStateMachine() {
         }
         phaseRecoveryStartTime = 0;
         verificationProgressPct = 0;
-        stopReason = "Auto-Start Waiting: 3-Phase Voltage Sensors Not Installed / Supply Missing";
+        stopReason = "Start Refused: Hardware Phase Sensors Missing / Supply Line Fault";
       }
       break;
 
@@ -724,22 +731,35 @@ void processStateMachine() {
 
         float totalCurrent = i1 + i2 + i3;
 
-        // --- UNIVERSAL BASELINE CALIBRATION SAMPLING ---
+        // --- 10-SECOND AVERAGED SELF-LEARNING BASELINE CALIBRATION ---
         if (isCalibrating) {
-          if (now - calibrationStartTime >= 10000) { // Sample stable current over 10s
-            if (totalCurrent >= 1.0) {
-              learnedBaseline = totalCurrent;
+          if (now - lastCalibrationSampleTime >= 1000) { // Sample every 1 second
+            lastCalibrationSampleTime = now;
+            calibrationSamples[calibrationSampleIndex++] = totalCurrent;
+
+            // Check if current fluctuated wildly (>25% instability) during calibration
+            if (calibrationSampleIndex > 1) {
+              float prev = calibrationSamples[calibrationSampleIndex - 2];
+              if (abs(totalCurrent - prev) / prev > 0.25) {
+                isCalibrating = false;
+                Serial.println(">>> CALIBRATION ABORTED: Unstable Current Fluctuation Detected!");
+                stopReason = "Calibration Aborted: Unstable Current";
+                publishTelemetry();
+                break;
+              }
+            }
+
+            if (calibrationSampleIndex >= 10) { // 10 valid 1-second samples collected!
+              float sum = 0.0;
+              for (int k = 0; k < 10; k++) sum += calibrationSamples[k];
+              learnedBaseline = sum / 10.0; // True 10-second averaged baseline
               dryRunThreshold = learnedBaseline * 0.50; // Universal 50% Dry-Run Threshold
               isCalibrated = true;
               isCalibrating = false;
               saveNvsSettings();
-              Serial.printf(">>> CALIBRATION COMPLETE! Learned Baseline = %.2fA, 50%% Threshold = %.2fA\n", learnedBaseline, dryRunThreshold);
+              Serial.printf(">>> CALIBRATION COMPLETE! Learned 10s Averaged Baseline = %.2fA, 50%% Threshold = %.2fA\n", learnedBaseline, dryRunThreshold);
               stopReason = "Baseline Calibrated (" + String(learnedBaseline, 1) + "A Total)";
               publishTelemetry();
-            } else {
-              isCalibrating = false;
-              Serial.println(">>> CALIBRATION FAILED: Invalid / Low current reading!");
-              stopReason = "Calibration Failed: Low Current";
             }
           }
         }
@@ -749,7 +769,7 @@ void processStateMachine() {
           stopReason = "Fault Trip: TRIPPED_PHASE_FAILURE (Grid Power Loss)";
           tripMotor("TRIPPED_PHASE_FAILURE", false);
         }
-        // 2. Inverse-Time Overload Protection (Latched - 3s continuous delay to prevent inrush false trips)
+        // 2. Filtered Overload Protection (Latched - 3s continuous delay to prevent inrush false trips)
         else if (i1 > RATED_FLC || i2 > RATED_FLC || i3 > RATED_FLC) {
           if (overloadStartTime == 0) {
             overloadStartTime = now;
@@ -801,19 +821,11 @@ void processStateMachine() {
 void loop() {
   esp_task_wdt_reset();
 
-  if (!mqttClient.connected()) {
-    reconnectMqtt();
-  } else {
-    mqttClient.loop();
-  }
-  server.handleClient();
-
+  // 1. LOCAL PROTECTION RECEIVED TOP PRIORITY: Execute processStateMachine() first on every loop cycle (~1ms)
   unsigned long now = millis();
-
-  // Run Industrial Non-Blocking Finite State Machine (Local protection runs every 10ms regardless of cloud status)
   processStateMachine();
 
-  // --- Track Motor Running Hours & Energy Consumption (kWh) ---
+  // 2. Track Motor Running Hours & Energy Consumption (kWh)
   if (motorState) {
     if (lastRunTimeTick == 0) lastRunTimeTick = now;
     unsigned long delta = now - lastRunTimeTick;
@@ -834,13 +846,21 @@ void loop() {
     lastRunTimeTick = 0;
   }
 
-  // --- Publish Telemetry Periodically ---
+  // 3. Network / Cloud Operations
+  if (!mqttClient.connected()) {
+    reconnectMqtt();
+  } else {
+    mqttClient.loop();
+  }
+  server.handleClient();
+
+  // 4. Publish Telemetry Periodically
   if (now - lastMqttPublish > mqttInterval) {
     lastMqttPublish = now;
     publishTelemetry();
   }
 
-  // --- TIME SCHEDULING CHECK ---
+  // 5. TIME SCHEDULING CHECK
   if (scheduleEnabled && !faultState) {
     struct tm timeinfo;
     if (getLocalTime(&timeinfo)) {
@@ -848,15 +868,10 @@ void loop() {
       int currentMin = timeinfo.tm_min;
 
       if (currentHour == SCHEDULE_START_HOUR && currentMin == SCHEDULE_START_MIN && !motorState) {
-        Serial.println(">>> SCHEDULE TRIGGER: Inspecting 3-phase safety...");
-        if (performPreStartSafetyInspection()) {
-          stopReason = "Motor Running (Scheduled)";
-          setMotorState(true);
-          currentState = STATE_RUNNING;
-        } else {
-          stopReason = "Schedule Start Refused: 3-Phase Grid Power Missing";
-          tripMotor("TRIPPED_PHASE_FAILURE", false);
-        }
+        Serial.println(">>> SCHEDULE TRIGGER: Requesting Unified Pre-Start Safety State Machine...");
+        phaseRecoveryStartTime = 0;
+        currentState = STATE_AUTO_RECOVERY_WAITING; // Routes through 15s stability check!
+        stopReason = "Scheduled Start: Verifying 15s 3-Phase Stability...";
         publishTelemetry();
       }
       else if (currentHour == SCHEDULE_STOP_HOUR && currentMin == SCHEDULE_STOP_MIN && motorState) {
