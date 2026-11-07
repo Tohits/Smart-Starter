@@ -1,33 +1,32 @@
 /*
  * Complete Industrial 5 HP 3-Phase Smart Motor Starter Firmware for ESP32S
  *
- * 10-POINT INDUSTRIAL SAFETY & SELF-LEARNING SPECIFICATION:
+ * INDUSTRIAL FAIL-SAFE SAFETY & SENSOR DIAGNOSTICS SPECIFICATION:
  *
- * 1. Strict Fail-Safe Hardware Phase Verification:
- *    - Uses isolated hardware AC Optocouplers (GPIO 25, 26, 27) for Phase R, Y, B.
- *    - If HAS_HARDWARE_VOLTAGE_SENSORS is false or sensors are unverified, isThreePhaseSupplyHealthy()
- *      returns FALSE and Relay stays CONTINUOUSLY OFF (HIGH).
- *    - Telemetry reports -1.0 for V1/V2/V3 when sensors are not installed (Zero fake 230V numbers!).
+ * 1. Independent Local Operation (Wi-Fi/MQTT Loss):
+ *    - Wi-Fi or MQTT disconnects NEVER turn OFF a running motor.
+ *    - All 5 motor protections (Overload, Dry-Run, Over-Temp, Single Phasing, Faulty Current)
+ *      run locally on the ESP32 every 10ms completely independent of cloud connectivity.
  *
- * 2. Unified Safe Starting State Machine:
- *    - Manual START, Auto-Start, Schedule, & Power Return ALL use the exact same state machine.
- *    - No MQTT command or callback can directly energize GPIO 5.
+ * 2. Strict Fail-Safe Hardware Phase Verification:
+ *    - Software flags or MQTT commands NEVER count as physical phase verification.
+ *    - Only validated isolated voltage-sensing hardware (GPIO 25, 26, 27) can confirm incoming R, Y, B phases.
+ *    - Without verified hardware voltage sensors (HAS_HARDWARE_VOLTAGE_SENSORS = false),
+ *      automatic starting remains STRICTLY LOCKED OUT and Relay stays OFF (HIGH).
  *
- * 3. Authorized Latched Fault Reset:
- *    - Damaging faults (Overload, Dry-Run, Temp, Short) set latched faultState = true (Persisted in NVS).
- *    - Latched faults can ONLY be cleared by an authorized 'RESET_FAULT' command over MQTT after safety checks pass.
+ * 3. Strict Fault Lockout & Conditional Reset:
+ *    - Latched safety faults persist across ESP32 reboots in NVS.
+ *    - 'RESET_FAULT' is REFUSED if the physical fault condition (over-temp, short circuit, or sensor fault) still exists.
  *
- * 4. Configurable Motor Overload & Temperature Protection:
- *    - Configurable RATED_FLC (Default 8.5A for 5 HP Motor, updateable via 'SET_FLC:8.5').
- *    - Inverse-time overload filtering (3s delay) prevents false trips on inrush current.
- *    - Sensor Out-of-Bounds ADC check (<50 or >4000) reports SENSOR_FAULT instead of fake 35°C.
+ * 4. Advanced Sensor Hardware Diagnostics:
+ *    - CT Sensor Plausibility: Validates ADC DC baseline (1200 < ADC < 2800).
+ *    - Temp Sensor Plausibility: Validates ADC bounds (200 < ADC < 3800).
+ *    - Invalid CT/Temp readings return -1.0 and trigger SENSOR_FAULT instead of fake values.
  *
- * 5. Universal Self-Learning Dry-Run Protection Engine:
+ * 5. Universal Self-Learning Dry-Run Protection:
  *    - Calculates Total Current (R + Y + B).
  *    - Operator-initiated calibration ('CALIBRATE_DRYRUN') samples 10s running baseline and saves in NVS.
- *    - dryRunThreshold = learnedBaseline * 0.50 (Universal 50% drop).
- *    - Trips TRIPPED_DRY_RUN if total current <= threshold for 5 continuous seconds.
- *    - If uncalibrated, reports NOT_CALIBRATED and disables dry-run trips.
+ *    - dryRunThreshold = learnedBaseline * 0.50. Trips TRIPPED_DRY_RUN if total current <= threshold for 5s.
  *
  * 6. Hardware Fail-Safe:
  *    - GPIO 5 Active LOW: LOW = Contactor ON, HIGH = Contactor OFF.
@@ -69,7 +68,7 @@ const int PHASE_V3_PIN = 27;   // Phase B AC Supply Voltage Detector
 
 // HARDWARE CONFIGURATION FLAG:
 // Set to 'true' ONLY when physical AC Optocoupler voltage sensors are wired to GPIOs 25, 26, 27.
-// If set to 'false', firmware FAILS SAFELY: Refuses start & keeps Relay OFF!
+// If set to 'false', firmware FAILS SAFELY: Locks out Auto-Start & keeps Relay OFF!
 const bool HAS_HARDWARE_VOLTAGE_SENSORS = false;
 
 // --- FINITE STATE MACHINE DEFINITIONS ---
@@ -83,7 +82,7 @@ enum SystemState {
 
 SystemState currentState = STATE_BOOT_STABILIZATION;
 
-// Motor State & Protection Settings (5 HP Motor ~ 7.5A Full Load)
+// Motor State & Configurable Protection Parameters
 bool motorState = false;
 bool faultState = false;              // Latched Fault Lockout Flag (Saved in NVS)
 bool autoStartEnabled = false;        // Auto Start Motor feature toggle (Saved in NVS)
@@ -105,13 +104,14 @@ unsigned long overloadStartTime = 0;  // Timer for inverse-time overload filteri
 
 String stopReason = "System Boot / Fail-Safe Standby"; // Diagnostic reason string
 String sensorFaultStr = "NONE";                        // Sensor hardware fault status string
+String commStateStr = "INITIALIZING";                  // Communication status string
 int verificationProgressPct = 0;                        // 15-second stability verification progress (0-100%)
 
-unsigned long motorStartTime = 0;           // Timestamp when motor started
-unsigned long phaseRecoveryStartTime = 0;   // Timestamp when phase power recovery timer started
-const unsigned long DRY_RUN_GRACE_MS = 5000;       // 5-second grace period after start
-const unsigned long BOOT_STABILIZATION_MS = 3000; // 3-second hardware settle delay after boot
-const unsigned long RECOVERY_STABILITY_MS = 15000;// 15-second continuous phase stability period required before auto-start
+unsigned long motorStartTime = 0;             // Timestamp when motor started
+unsigned long phaseRecoveryStartTime = 0;     // Timestamp when phase power recovery timer started
+const unsigned long DRY_RUN_GRACE_MS = 5000;         // 5-second grace period after start
+const unsigned long BOOT_STABILIZATION_MS = 3000;   // 3-second hardware settle delay after boot
+const unsigned long RECOVERY_STABILITY_MS = 15000;  // 15-second continuous phase stability period required before auto-start
 
 // Energy & Running Hour Metering
 unsigned long totalRunTimeSec = 0;
@@ -207,7 +207,7 @@ void saveNvsSettings() {
   Serial.println(">>> NVS Settings Saved Successfully.");
 }
 
-// Function to calculate RMS current from CT Sensor with Hardware Bias & Out-of-Bounds Fault Detection
+// Function to calculate RMS current from CT Sensor with Hardware Plausibility Checking
 float readRMSCurrent(int pin) {
   int samples = 100;
   long rawSum = 0;
@@ -219,8 +219,9 @@ float readRMSCurrent(int pin) {
 
   long rawAverage = rawSum / samples;
 
-  // Sensor Out-of-Bounds Hardware Fault Check
-  if (rawAverage < 100 || rawAverage > 4000) {
+  // CT Sensor Plausibility Check: Baseline ADC must be centered around Vcc/2 (~2048)
+  // If rawAverage < 1200 or > 2800, sensor hardware is disconnected or damaged!
+  if (rawAverage < 1200 || rawAverage > 2800) {
     sensorFaultStr = "SENSOR_FAULT_CT";
     return -1.0; // Return -1.0 to indicate sensor hardware failure
   }
@@ -247,7 +248,7 @@ float readRMSCurrent(int pin) {
   return amps;
 }
 
-// STRICT FAIL-SAFE FUNCTION: Verifies whether all 3 incoming AC supply phases (R, Y, B) are present and healthy before starting
+// STRICT FAIL-SAFE FUNCTION: Verifies whether all 3 incoming AC supply phases (R, Y, B) are present and healthy
 bool isThreePhaseSupplyHealthy() {
   // 1. If physical AC Optocoupler voltage sensors are wired to GPIOs 25, 26, 27
   if (HAS_HARDWARE_VOLTAGE_SENSORS) {
@@ -260,13 +261,9 @@ bool isThreePhaseSupplyHealthy() {
     return true;
   }
 
-  // 2. FAIL-SAFE RULE: If physical voltage sensors are NOT installed, return FALSE!
-  // Prevents fake 230V numbers or current transformers from incorrectly asserting voltage health!
-  if (!phasePowerGridOk) {
-    return false; // Fail-Safe: Keep Relay OFF!
-  }
-
-  return true;
+  // 2. STRICT FAIL-SAFE RULE: Software flags or dashboard status NEVER count as physical phase verification!
+  // If physical hardware voltage sensors are NOT installed, RETURN FALSE! Auto-Start remains locked out.
+  return false;
 }
 
 // Function to perform Complete Pre-Start Safety Inspection (Supply Voltage + Sensor Baseline + Leakage + Thermal)
@@ -278,11 +275,11 @@ bool performPreStartSafetyInspection() {
 
   // 2. Fail-Safe 3-Phase Supply Health Check (MUST BE TRUE!)
   if (!isThreePhaseSupplyHealthy()) {
-    Serial.println(">>> PRE-START SAFETY CHECK FAILED: Supply Phase(s) Missing or Unverified!");
+    Serial.println(">>> PRE-START SAFETY CHECK FAILED: Hardware Phase Voltage Sensors Not Installed or Supply Unhealthy!");
     return false;
   }
 
-  // 3. CT Sensor Bias & Residual Short-Circuit Check
+  // 3. CT Sensor Bias Plausibility & Residual Short-Circuit Check
   float i1 = readRMSCurrent(CT1_PIN);
   float i2 = readRMSCurrent(CT2_PIN);
   float i3 = readRMSCurrent(CT3_PIN);
@@ -298,11 +295,11 @@ bool performPreStartSafetyInspection() {
     return false;
   }
 
-  // 4. Motor Casing Over-Temperature & Sensor Fault Check
+  // 4. Motor Casing Over-Temperature & Sensor Plausibility Check
   float temp = readMotorTemperature();
   if (temp < 0.0) {
     sensorFaultStr = "SENSOR_FAULT_TEMP";
-    Serial.println(">>> PRE-START SAFETY CHECK FAILED: Temperature Sensor Fault!");
+    Serial.println(">>> PRE-START SAFETY CHECK FAILED: Temperature Sensor Hardware Fault!");
     return false;
   }
 
@@ -315,10 +312,11 @@ bool performPreStartSafetyInspection() {
   return true;
 }
 
-// Function to read Motor Body Temperature (°C) with Sensor Out-of-Bounds Fault Detection
+// Function to read Motor Body Temperature (°C) with Sensor Plausibility Checking
 float readMotorTemperature() {
   int raw = analogRead(TEMP_PIN);
-  if (raw > 4000 || raw < 50) {
+  // Plausibility check: valid thermistor ADC range is between 200 and 3800
+  if (raw > 3800 || raw < 200) {
     sensorFaultStr = "SENSOR_FAULT_TEMP";
     return -1.0; // Return -1.0 to indicate temperature sensor hardware fault
   }
@@ -361,17 +359,28 @@ void startBaselineCalibration() {
 }
 
 bool resetLatchedFault() {
-  // Inspect physical temperature and sensor health before allowing fault reset
+  // STRICT RULE: RESET_FAULT must verify that original physical fault conditions have cleared!
   float temp = readMotorTemperature();
-  if (temp > MAX_TEMP_LIMIT) {
-    Serial.println(">>> Fault Reset Refused: Motor Temperature is still above thermal limit!");
-    stopReason = "Reset Refused: Motor Still Over-Temperature";
+  if (temp < 0.0 || temp > MAX_TEMP_LIMIT) {
+    Serial.println(">>> Fault Reset Refused: Motor Temperature is still above limit or sensor is faulty!");
+    stopReason = "Reset Refused: Motor Over-Temperature or Sensor Fault";
+    publishTelemetry();
+    return false;
+  }
+
+  float i1 = readRMSCurrent(CT1_PIN);
+  float i2 = readRMSCurrent(CT2_PIN);
+  float i3 = readRMSCurrent(CT3_PIN);
+  if (i1 < 0.0 || i2 < 0.0 || i3 < 0.0 || i1 > 10.0 || i2 > 10.0 || i3 > 10.0) {
+    Serial.println(">>> Fault Reset Refused: CT sensor fault or short-circuit surge still active!");
+    stopReason = "Reset Refused: Current Fault / Sensor Fault Active";
     publishTelemetry();
     return false;
   }
 
   faultState = false;
-  stopReason = "Latched Fault Cleared (Manual Reset)";
+  sensorFaultStr = "NONE";
+  stopReason = "Latched Fault Cleared (Manual Authorized Reset)";
   saveNvsSettings();
   Serial.println(">>> Latched Fault Lockout Cleared by Authorized RESET_FAULT Command.");
   if (!motorState) {
@@ -404,7 +413,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
     else if (upperMsg == "ON" || upperMsg == "START" || upperMsg == "1") {
       if (faultState) {
         Serial.println(">>> START Refused: Latched Fault Lockout is Active! Send RESET_FAULT first.");
-        stopReason = "Start Refused: Latched Fault Active (Reset Required)";
+        stopReason = "Start Refused: Latched Fault Active (RESET_FAULT Required)";
       } else {
         Serial.println(">>> START Command Received: Requesting Unified Pre-Start Safety Inspection...");
         if (performPreStartSafetyInspection()) {
@@ -412,7 +421,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
           setMotorState(true);
           currentState = STATE_RUNNING;
         } else {
-          stopReason = "Start Refused: 3-Phase Supply Unhealthy or Unverified";
+          stopReason = "Start Refused: Hardware Phase Sensors Missing / Supply Unhealthy";
           tripMotor("TRIPPED_PHASE_FAILURE", true);
         }
       }
@@ -505,12 +514,14 @@ void reconnectMqtt() {
   lastMqttRetry = millis();
 
   if (!mqttClient.connected()) {
+    commStateStr = "COMMUNICATION_LOST";
     esp_task_wdt_reset();
     Serial.print("Connecting to HiveMQ Cloud Secure MQTT...");
     String clientId = "SmartStarterGlobal-";
     clientId += String(random(0xffff), HEX);
 
     if (mqttClient.connect(clientId.c_str(), mqtt_user, mqtt_pass)) {
+      commStateStr = "LIVE_CONNECTED";
       Serial.println("connected globally!");
       mqttClient.subscribe(mqtt_topic_control);
       publishTelemetry();
@@ -518,6 +529,8 @@ void reconnectMqtt() {
       Serial.print("failed, rc=");
       Serial.println(mqttClient.state());
     }
+  } else {
+    commStateStr = "LIVE_CONNECTED";
   }
 }
 
@@ -690,7 +703,7 @@ void processStateMachine() {
         }
         phaseRecoveryStartTime = 0;
         verificationProgressPct = 0;
-        stopReason = "Auto-Start Waiting: 3-Phase Power Unhealthy / Phase Missing";
+        stopReason = "Auto-Start Waiting: 3-Phase Voltage Sensors Not Installed / Supply Missing";
       }
       break;
 
@@ -702,7 +715,7 @@ void processStateMachine() {
         float i3 = readRMSCurrent(CT3_PIN);
         float temp = readMotorTemperature();
 
-        // Check for Sensor Faults
+        // Check for Sensor Hardware Faults
         if (i1 < 0.0 || i2 < 0.0 || i3 < 0.0 || temp < 0.0) {
           stopReason = "Fault Trip: SENSOR_HARDWARE_FAULT";
           tripMotor("SENSOR_FAULT", true);
@@ -797,7 +810,7 @@ void loop() {
 
   unsigned long now = millis();
 
-  // Run Industrial Non-Blocking Finite State Machine
+  // Run Industrial Non-Blocking Finite State Machine (Local protection runs every 10ms regardless of cloud status)
   processStateMachine();
 
   // --- Track Motor Running Hours & Energy Consumption (kWh) ---
@@ -904,7 +917,7 @@ void publishTelemetry() {
   String ipAddress = WiFi.localIP().toString();
 
   bool gridHealthy = isThreePhaseSupplyHealthy();
-  // Reporting: -1.0 indicates SENSOR_NOT_AVAILABLE (No fake 230V numbers!)
+  // Reporting: -1.0 indicates SENSOR_NOT_AVAILABLE (Zero fake 230V numbers!)
   float v1 = HAS_HARDWARE_VOLTAGE_SENSORS ? (gridHealthy ? 230.0 : 0.0) : -1.0;
   float v2 = HAS_HARDWARE_VOLTAGE_SENSORS ? (gridHealthy ? 230.0 : 0.0) : -1.0;
   float v3 = HAS_HARDWARE_VOLTAGE_SENSORS ? (gridHealthy ? 230.0 : 0.0) : -1.0;
@@ -923,6 +936,7 @@ void publishTelemetry() {
   payload += "\"status\":\"" + String(motorState ? "ON" : "OFF") + "\",";
   payload += "\"stopReason\":\"" + stopReason + "\",";
   payload += "\"sensorFault\":\"" + sensorFaultStr + "\",";
+  payload += "\"commState\":\"" + commStateStr + "\",";
   payload += "\"verificationProgressPct\":" + String(verificationProgressPct) + ",";
   payload += "\"hasVoltageSensors\":" + String(HAS_HARDWARE_VOLTAGE_SENSORS ? "true" : "false") + ",";
   payload += "\"phase1\":" + String(i1, 2) + ",";
