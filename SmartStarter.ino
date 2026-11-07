@@ -2,7 +2,7 @@
  * Complete Industrial 5 HP 3-Phase Smart Motor Starter Firmware for ESP32S
  * Features:
  * - Captive Portal (WiFiManager) for easy Wi-Fi setup
- * - Intelligent Auto-Start with Pre-Start Current Safety Inspection
+ * - Continuous Auto-Start with Pre-Start Current Safety Inspection
  * - Dynamic Time Scheduler (Configurable Start/Stop Times via MQTT Dashboard)
  * - Intelligent Dry-Run Protection with 5-Second Startup Grace Period
  * - 3-Phase Current & Voltage Monitoring with Zero-Noise Clamping
@@ -80,6 +80,25 @@ const long mqttInterval = 3000; // Publish telemetry every 3 seconds
 
 // Function Declarations
 void publishTelemetry();
+void tripMotor(String reason);
+void setMotorState(bool state);
+float readRMSCurrent(int pin);
+float readMotorTemperature();
+bool checkCurrentSafetyBeforeStart();
+
+// Function to perform Pre-Start Current Inspection
+bool checkCurrentSafetyBeforeStart() {
+  float i1 = readRMSCurrent(CT1_PIN);
+  float i2 = readRMSCurrent(CT2_PIN);
+  float i3 = readRMSCurrent(CT3_PIN);
+
+  // If current is unexpectedly high BEFORE starting (> 10.0A pre-start residual), short-circuit or grounding fault is present!
+  if (i1 > 10.0 || i2 > 10.0 || i3 > 10.0) {
+    Serial.println(">>> SAFETY INSPECTION FAILED: Pre-start current surge / short circuit detected!");
+    return false;
+  }
+  return true;
+}
 
 // Function to calculate RMS current from CT Sensor with Dynamic DC Baseline & Zero-Clamping
 float readRMSCurrent(int pin) {
@@ -119,20 +138,6 @@ float readRMSCurrent(int pin) {
   return amps;
 }
 
-// Function to perform Pre-Start Current Inspection
-bool checkCurrentSafetyBeforeStart() {
-  float i1 = readRMSCurrent(CT1_PIN);
-  float i2 = readRMSCurrent(CT2_PIN);
-  float i3 = readRMSCurrent(CT3_PIN);
-
-  // If current is unexpectedly high BEFORE starting (> 10.0A pre-start residual), short-circuit or grounding fault is present!
-  if (i1 > 10.0 || i2 > 10.0 || i3 > 10.0) {
-    Serial.println(">>> SAFETY INSPECTION FAILED: Pre-start current surge / short circuit detected!");
-    return false;
-  }
-  return true;
-}
-
 // Function to read Motor Body Temperature (°C) with Floating Pin Suppression
 float readMotorTemperature() {
   int raw = analogRead(TEMP_PIN);
@@ -141,26 +146,6 @@ float readMotorTemperature() {
   }
   float tempC = (raw / 4095.0) * 100.0;
   return tempC;
-}
-
-void tripMotor(String reason) {
-  motorState = false;
-  digitalWrite(RELAY_PIN, RELAY_OFF);
-  Serial.print(">>> Motor Tripped: ");
-  Serial.println(reason);
-
-  String payload = "{\"status\":\"" + reason + "\"}";
-  mqttClient.publish(mqtt_topic_telemetry, payload.c_str());
-}
-
-void setMotorState(bool state) {
-  motorState = state;
-  digitalWrite(RELAY_PIN, state ? RELAY_ON : RELAY_OFF);
-  if (state) {
-    motorStartTime = millis();
-  }
-  Serial.print(">>> Relay Pin P5 (GPIO 5) set to: ");
-  Serial.println(state ? "RELAY_ON (LOW)" : "RELAY_OFF (HIGH)");
 }
 
 void callback(char* topic, byte* payload, unsigned int length) {
@@ -349,8 +334,25 @@ void loop() {
   mqttClient.loop();
   server.handleClient();
 
-  // --- Track Motor Running Hours & Energy Consumption (kWh) ---
   unsigned long now = millis();
+
+  // --- CONTINUOUS AUTO-START CURRENT INSPECTION & START ---
+  if (autoStartEnabled && !motorState) {
+    static unsigned long lastAutoStartCheck = 0;
+    if (now - lastAutoStartCheck > 4000) { // Check current safety every 4 seconds when Auto-Start is active
+      lastAutoStartCheck = now;
+      if (checkCurrentSafetyBeforeStart()) {
+        Serial.println(">>> AUTO-START SAFETY CHECK PASSED: Starting Motor!");
+        setMotorState(true);
+        publishTelemetry();
+      } else {
+        Serial.println(">>> AUTO-START SAFETY CHECK FAILED: Faulty Current Detected!");
+        tripMotor("TRIPPED_FAULTY_CURRENT");
+      }
+    }
+  }
+
+  // --- Track Motor Running Hours & Energy Consumption (kWh) ---
   if (motorState) {
     if (lastRunTimeTick == 0) lastRunTimeTick = now;
     unsigned long delta = now - lastRunTimeTick;
@@ -421,6 +423,26 @@ void loop() {
       }
     }
   }
+}
+
+void tripMotor(String reason) {
+  motorState = false;
+  digitalWrite(RELAY_PIN, RELAY_OFF);
+  Serial.print(">>> Motor Tripped: ");
+  Serial.println(reason);
+
+  String payload = "{\"status\":\"" + reason + "\"}";
+  mqttClient.publish(mqtt_topic_telemetry, payload.c_str());
+}
+
+void setMotorState(bool state) {
+  motorState = state;
+  digitalWrite(RELAY_PIN, state ? RELAY_ON : RELAY_OFF);
+  if (state) {
+    motorStartTime = millis();
+  }
+  Serial.print(">>> Relay Pin P5 (GPIO 5) set to: ");
+  Serial.println(state ? "RELAY_ON (LOW)" : "RELAY_OFF (HIGH)");
 }
 
 void publishTelemetry() {
