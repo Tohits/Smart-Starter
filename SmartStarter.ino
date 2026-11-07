@@ -2,8 +2,7 @@
  * Complete Industrial 5 HP 3-Phase Smart Motor Starter Firmware for ESP32S
  * Features:
  * - Captive Portal (WiFiManager) for easy Wi-Fi setup
- * - Intelligent Manual & Auto-Start Pre-Start Current Safety Inspection
- * - Single Phasing / Phase Loss Protection (Trips if any phase fails during operation)
+ * - Intelligent Auto-Start with Fault Lockout (Prevents Rapid ON/OFF Chattering Loop)
  * - Dynamic Time Scheduler (Configurable Start/Stop Times via MQTT Dashboard)
  * - Intelligent Dry-Run Protection with 5-Second Startup Grace Period
  * - 3-Phase Current & Voltage Monitoring with Zero-Noise Clamping
@@ -42,6 +41,7 @@ const int TEMP_PIN = 33;       // Motor Temperature Sensor Pin
 
 // Motor State & Protection Thresholds (5 HP Motor ~ 7.5A Full Load)
 bool motorState = false;
+bool faultState = false;              // Safety Lockout Flag: True when motor trips on a fault
 bool autoStartEnabled = false;        // Auto Start Motor feature toggle
 bool dryRunProtectionEnabled = false; // Disabled by default for bench testing without CT sensors
 const float RATED_FLC = 50.0;         // Temporarily set high (50A) for testing without sensors
@@ -167,6 +167,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
 
   if (String(topic) == mqtt_topic_control) {
     if (upperMsg == "ON" || upperMsg == "START" || upperMsg == "1") {
+      faultState = false; // Clear fault lockout on manual START
       Serial.println(">>> START Button Pressed: Inspecting pre-start current safety...");
       if (checkCurrentSafetyBeforeStart()) {
         Serial.println(">>> Pre-start Inspection PASSED -> Turning MOTOR ON");
@@ -176,10 +177,12 @@ void callback(char* topic, byte* payload, unsigned int length) {
         tripMotor("TRIPPED_FAULTY_CURRENT");
       }
     } else if (upperMsg == "OFF" || upperMsg == "STOP" || upperMsg == "0") {
+      faultState = false; // Clear fault lockout on manual STOP
       Serial.println(">>> Command matched: Turning MOTOR OFF");
       setMotorState(false);
     } else if (upperMsg == "AUTOSTART_ON") {
       autoStartEnabled = true;
+      faultState = false; // Reset fault state when re-enabling Auto-Start
       Serial.println(">>> Auto Start Motor ENABLED");
       if (!motorState) {
         if (checkCurrentSafetyBeforeStart()) {
@@ -242,7 +245,7 @@ void reconnectMqtt() {
       Serial.println("connected globally!");
       mqttClient.subscribe(mqtt_topic_control);
 
-      if (autoStartEnabled && !motorState) {
+      if (autoStartEnabled && !motorState && !faultState) {
         Serial.println(">>> Auto-Start Active: Performing Pre-Start Current Safety Inspection...");
         if (checkCurrentSafetyBeforeStart()) {
           Serial.println(">>> Pre-Start Inspection Passed! Starting motor...");
@@ -339,10 +342,10 @@ void loop() {
 
   unsigned long now = millis();
 
-  // --- CONTINUOUS AUTO-START CURRENT INSPECTION & START ---
-  if (autoStartEnabled && !motorState) {
+  // --- CONTINUOUS AUTO-START CURRENT INSPECTION (Only runs if NO FAULT LOCKOUT is active) ---
+  if (autoStartEnabled && !motorState && !faultState) {
     static unsigned long lastAutoStartCheck = 0;
-    if (now - lastAutoStartCheck > 4000) { // Check current safety every 4 seconds when Auto-Start is active
+    if (now - lastAutoStartCheck > 4000) {
       lastAutoStartCheck = now;
       if (checkCurrentSafetyBeforeStart()) {
         Serial.println(">>> AUTO-START SAFETY CHECK PASSED: Starting Motor!");
@@ -378,7 +381,7 @@ void loop() {
   }
 
   // --- TIME SCHEDULING CHECK ---
-  if (scheduleEnabled) {
+  if (scheduleEnabled && !faultState) {
     struct tm timeinfo;
     if (getLocalTime(&timeinfo)) {
       int currentHour = timeinfo.tm_hour;
@@ -435,12 +438,12 @@ void loop() {
 
 void tripMotor(String reason) {
   motorState = false;
+  faultState = true; // Lock out Auto-Start from re-starting until fault is acknowledged
   digitalWrite(RELAY_PIN, RELAY_OFF);
-  Serial.print(">>> Motor Tripped: ");
+  Serial.print(">>> Motor Tripped (Fault Lockout Activated): ");
   Serial.println(reason);
 
-  String payload = "{\"status\":\"" + reason + "\"}";
-  mqttClient.publish(mqtt_topic_telemetry, payload.c_str());
+  publishTelemetry(); // Publish full telemetry so feature toggles & state remain 100% intact!
 }
 
 void setMotorState(bool state) {
