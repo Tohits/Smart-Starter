@@ -74,7 +74,7 @@
                     100% EXCELLENT
                 </span>
             </div>
-            <!-- Health Metrics Grid (Includes Thermal Stress) -->
+            <!-- Health Metrics Grid -->
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-center text-xs">
                 <div class="bg-slate-900/60 p-1.5 rounded-lg border border-slate-700/60">
                     <p class="text-slate-400 text-[8px] font-medium">Phase Balance</p>
@@ -95,12 +95,12 @@
             </div>
         </div>
 
-        <!-- Real-Time Metrics Row: Line Voltage, Energy (kWh), Running Hours (No Temp duplicate!) -->
+        <!-- Real-Time Metrics Row: Motor Temp, Energy (kWh), Running Hours -->
         <div class="grid grid-cols-3 gap-2 text-center text-xs">
-            <!-- Line Voltage -->
+            <!-- Motor Temp -->
             <div class="telemetryCard bg-slate-800 border border-slate-700 p-1.5 rounded-xl shadow">
-                <p class="phaseLabel text-slate-400 text-[8px] font-semibold">🔌 AC Voltage</p>
-                <p id="lineVoltageVal" class="text-sm font-bold text-sky-400 mt-0.5">400 V (3-Phase)</p>
+                <p class="phaseLabel text-slate-400 text-[8px] font-semibold">🌡️ Motor Temp</p>
+                <p id="motorTemp" class="text-sm font-bold text-amber-400 mt-0.5">35.0 °C</p>
             </div>
             <!-- Energy Consumption (kWh) -->
             <div class="telemetryCard bg-slate-800 border border-slate-700 p-1.5 rounded-xl shadow">
@@ -137,7 +137,7 @@
             </div>
         </div>
 
-        <!-- Toggles & Time Scheduler Controls Row (Balanced 3-Column Grid) -->
+        <!-- Toggles & Time Scheduler Controls Row (Stacked 2-Row Time Scheduler - ZERO Overflow!) -->
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
             <!-- Auto-Start Toggle -->
             <div id="autoStartCard" class="bg-slate-800 border border-slate-700 px-2.5 py-1.5 rounded-xl shadow flex items-center justify-between gap-2 transition-colors duration-300">
@@ -161,19 +161,22 @@
                 </button>
             </div>
 
-            <!-- Time Scheduler Controls (Clean layout, no overflow!) -->
-            <div id="scheduleCard" class="bg-slate-800 border border-slate-700 px-2 py-1.5 rounded-xl shadow flex items-center justify-between gap-1 transition-colors duration-300">
-                <div class="flex items-center gap-1">
-                    <span class="text-sm">⏰</span>
+            <!-- Time Scheduler Controls (Stacked Layout: Title & Button on top, Time Inputs below - NO Overflow!) -->
+            <div id="scheduleCard" class="bg-slate-800 border border-slate-700 px-2.5 py-1 rounded-xl shadow flex flex-col justify-between gap-1 transition-colors duration-300">
+                <div class="flex items-center justify-between w-full">
                     <div class="flex items-center gap-1">
-                        <input type="time" id="schedStartTime" value="06:30" aria-label="Schedule Start Time" class="bg-slate-900 border border-slate-700 text-white text-[9px] px-1 py-0.5 rounded font-mono w-14 text-center">
-                        <span class="text-[8px] text-slate-400">-</span>
-                        <input type="time" id="schedStopTime" value="18:00" aria-label="Schedule Stop Time" class="bg-slate-900 border border-slate-700 text-white text-[9px] px-1 py-0.5 rounded font-mono w-14 text-center">
+                        <span class="text-xs">⏰</span>
+                        <h4 class="font-bold text-white text-[10px]">Schedule</h4>
                     </div>
+                    <button id="schedBtn" onclick="toggleSchedule()" class="bg-slate-700 hover:bg-slate-600 text-slate-300 border border-slate-600 font-bold px-2 py-0.5 rounded-lg text-[9px] shadow transition whitespace-nowrap">
+                        Disabled ⚪
+                    </button>
                 </div>
-                <button id="schedBtn" onclick="toggleSchedule()" class="bg-slate-700 hover:bg-slate-600 text-slate-300 border border-slate-600 font-bold px-2 py-0.5 rounded-lg text-[9px] shadow transition whitespace-nowrap">
-                    Disabled ⚪
-                </button>
+                <div class="flex items-center justify-center gap-1 w-full">
+                    <input type="time" id="schedStartTime" value="06:30" aria-label="Schedule Start Time" class="bg-slate-900 border border-slate-700 text-white text-[9px] px-1 py-0.5 rounded font-mono text-center flex-1">
+                    <span class="text-[8px] text-slate-400">to</span>
+                    <input type="time" id="schedStopTime" value="18:00" aria-label="Schedule Stop Time" class="bg-slate-900 border border-slate-700 text-white text-[9px] px-1 py-0.5 rounded font-mono text-center flex-1">
+                </div>
             </div>
         </div>
 
@@ -408,7 +411,7 @@
                 hardwareBar.className = "bg-slate-800 border border-slate-700 px-2.5 py-1.5 rounded-xl shadow flex items-center justify-between gap-2 text-xs flex-wrap transition-colors duration-300";
                 autoStartCard.className = "bg-slate-800 border border-slate-700 px-2.5 py-1.5 rounded-xl shadow flex items-center justify-between gap-2 transition-colors duration-300";
                 dryRunCard.className = "bg-slate-800 border border-slate-700 px-2.5 py-1.5 rounded-xl shadow flex items-center justify-between gap-2 transition-colors duration-300";
-                scheduleCard.className = "bg-slate-800 border border-slate-700 px-2 py-1.5 rounded-xl shadow flex items-center justify-between gap-1 transition-colors duration-300";
+                scheduleCard.className = "bg-slate-800 border border-slate-700 px-2.5 py-1 rounded-xl shadow flex flex-col justify-between gap-1 transition-colors duration-300";
                 healthPanel.className = "bg-slate-800 border border-slate-700 p-2 rounded-xl shadow transition-colors duration-300";
                 telemetryHeading.className = "text-[9px] font-bold mb-1 text-slate-300 uppercase tracking-wider";
                 espLabel.className = "text-slate-400 font-semibold text-[10px]";
@@ -430,7 +433,7 @@
                 hardwareBar.className = "bg-white border border-slate-200 px-2.5 py-1.5 rounded-xl shadow-sm flex items-center justify-between gap-2 text-xs flex-wrap transition-colors duration-300";
                 autoStartCard.className = "bg-white border border-slate-200 px-2.5 py-1.5 rounded-xl shadow-sm flex items-center justify-between gap-2 transition-colors duration-300";
                 dryRunCard.className = "bg-white border border-slate-200 px-2.5 py-1.5 rounded-xl shadow-sm flex items-center justify-between gap-2 transition-colors duration-300";
-                scheduleCard.className = "bg-white border border-slate-200 px-2 py-1.5 rounded-xl shadow-sm flex items-center justify-between gap-1 transition-colors duration-300";
+                scheduleCard.className = "bg-white border border-slate-200 px-2.5 py-1 rounded-xl shadow-sm flex flex-col justify-between gap-1 transition-colors duration-300";
                 healthPanel.className = "bg-white border border-slate-200 p-2 rounded-xl shadow-sm transition-colors duration-300";
                 telemetryHeading.className = "text-[9px] font-bold mb-1 text-slate-800 uppercase tracking-wider";
                 espLabel.className = "text-slate-700 font-semibold text-[10px]";
@@ -676,7 +679,10 @@
                     if (data.v2 !== undefined) document.getElementById('v2Val').innerText = `${data.v2} V`;
                     if (data.v3 !== undefined) document.getElementById('v3Val').innerText = `${data.v3} V`;
 
-                    // Update Energy & Run Hours
+                    // Update Motor Temp, Energy & Run Hours
+                    if (data.temperature !== undefined) {
+                        document.getElementById('motorTemp').innerText = `${data.temperature} °C`;
+                    }
                     if (data.energykWh !== undefined) {
                         document.getElementById('energykWh').innerText = `${data.energykWh} kWh`;
                     }
