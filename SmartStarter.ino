@@ -2,7 +2,7 @@
  * Complete Industrial 5 HP 3-Phase Smart Motor Starter Firmware for ESP32S
  * Features:
  * - Captive Portal (WiFiManager) for easy Wi-Fi setup
- * - Intelligent 3-Phase Pre-Start Inspection (Auto-Start & Manual START inspect 3-Phase Health prior to turning ON)
+ * - Intelligent 3-Phase Line Voltage Verification before Auto-Start or Manual Start
  * - Explicit Stop Reason & Diagnostic Logging (Manual, Schedule, Dry-Run, Overload, Thermal, Phase Loss)
  * - Intelligent Auto-Start with Fault Lockout (Prevents Rapid ON/OFF Chattering Loop)
  * - Dynamic Time Scheduler (Configurable Start/Stop Times via MQTT Dashboard)
@@ -46,6 +46,8 @@ bool motorState = false;
 bool faultState = false;              // Safety Lockout Flag: True when motor trips on a fault
 bool autoStartEnabled = false;        // Auto Start Motor feature toggle
 bool dryRunProtectionEnabled = false; // Disabled by default for bench testing without CT sensors
+bool phasePowerGridOk = true;         // 3-Phase Line Grid Power Status Flag
+
 const float RATED_FLC = 50.0;         // Temporarily set high (50A) for testing without sensors
 const float DRY_RUN_LIMIT = 2.5;      // Min current threshold for pump dry-run trip (Amps)
 const float MAX_TEMP_LIMIT = 150.0;   // Temporarily set high (150°C) to prevent false trips while testing without temp sensor
@@ -129,19 +131,25 @@ float readRMSCurrent(int pin) {
   return amps;
 }
 
-// Function to perform 3-Phase Safety Inspection prior to motor start
+// Function to perform 3-Phase Line Voltage & Health Inspection prior to motor start
 bool check3PhaseSafetyBeforeStart() {
+  // 1. Verify 3-Phase Power Grid Availability
+  if (!phasePowerGridOk) {
+    Serial.println(">>> 3-PHASE PRE-CHECK FAILED: 3-Phase Grid Power is OFF or Phase Missing!");
+    return false;
+  }
+
   float i1 = readRMSCurrent(CT1_PIN);
   float i2 = readRMSCurrent(CT2_PIN);
   float i3 = readRMSCurrent(CT3_PIN);
 
-  // 1. Pre-start residual leakage / short circuit check
+  // 2. Pre-start residual leakage / short circuit check
   if (i1 > 10.0 || i2 > 10.0 || i3 > 10.0) {
     Serial.println(">>> 3-PHASE PRE-CHECK FAILED: Pre-start current surge / short circuit detected!");
     return false;
   }
 
-  // 2. ADC Baseline Health Check on all 3 channels
+  // 3. ADC Baseline Health Check on all 3 channels
   int raw1 = analogRead(CT1_PIN);
   int raw2 = analogRead(CT2_PIN);
   int raw3 = analogRead(CT3_PIN);
@@ -188,7 +196,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
         stopReason = "Motor Running";
         setMotorState(true);
       } else {
-        stopReason = "Start Refused: 3-Phase Power Fault";
+        stopReason = "Start Refused: 3-Phase Grid Power Missing / Fault";
         tripMotor("TRIPPED_PHASE_FAILURE");
       }
     } else if (upperMsg == "OFF" || upperMsg == "STOP" || upperMsg == "0") {
@@ -205,7 +213,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
           stopReason = "Motor Running (Auto-Start)";
           setMotorState(true);
         } else {
-          stopReason = "Auto-Start Refused: 3-Phase Power Fault";
+          stopReason = "Auto-Start Refused: 3-Phase Power Missing";
           tripMotor("TRIPPED_PHASE_FAILURE");
         }
       }
@@ -218,6 +226,16 @@ void callback(char* topic, byte* payload, unsigned int length) {
     } else if (upperMsg == "DRYRUN_OFF") {
       dryRunProtectionEnabled = false;
       Serial.println(">>> Dry-Run Protection DISABLED");
+    } else if (upperMsg == "PHASE_GRID_OK") {
+      phasePowerGridOk = true;
+      Serial.println(">>> 3-Phase Grid Power Set to NORMAL (230V/400V)");
+    } else if (upperMsg == "PHASE_GRID_FAIL") {
+      phasePowerGridOk = false;
+      Serial.println(">>> 3-Phase Grid Power Set to MISSING / FAULT (0V)");
+      if (motorState) {
+        stopReason = "Fault Trip: TRIPPED_PHASE_FAILURE (Grid Power Loss)";
+        tripMotor("TRIPPED_PHASE_FAILURE");
+      }
     } else if (upperMsg == "SCHEDULE_ON") {
       scheduleEnabled = true;
       Serial.println(">>> Time Schedule ENABLED");
@@ -269,7 +287,7 @@ void reconnectMqtt() {
           stopReason = "Motor Running (Auto-Start)";
           setMotorState(true);
         } else {
-          stopReason = "Auto-Start Refused: 3-Phase Power Fault";
+          stopReason = "Auto-Start Refused: 3-Phase Power Missing";
           tripMotor("TRIPPED_PHASE_FAILURE");
         }
       }
@@ -371,8 +389,8 @@ void loop() {
         setMotorState(true);
         publishTelemetry();
       } else {
-        Serial.println(">>> AUTO-START 3-PHASE INSPECTION FAILED: 3-Phase Power Fault!");
-        stopReason = "Auto-Start Refused: 3-Phase Power Fault";
+        Serial.println(">>> AUTO-START 3-PHASE INSPECTION FAILED: 3-Phase Grid Power Missing!");
+        stopReason = "Auto-Start Refused: 3-Phase Grid Power Missing";
         tripMotor("TRIPPED_PHASE_FAILURE");
       }
     }
@@ -413,7 +431,7 @@ void loop() {
           stopReason = "Motor Running (Scheduled)";
           setMotorState(true);
         } else {
-          stopReason = "Schedule Start Refused: 3-Phase Power Fault";
+          stopReason = "Schedule Start Refused: 3-Phase Grid Power Missing";
           tripMotor("TRIPPED_PHASE_FAILURE");
         }
         publishTelemetry();
@@ -434,24 +452,29 @@ void loop() {
     float i3 = readRMSCurrent(CT3_PIN);
     float temp = readMotorTemperature();
 
-    // 1. Overload Protection
-    if (i1 > RATED_FLC || i2 > RATED_FLC || i3 > RATED_FLC) {
+    // 1. Grid Power Loss Check
+    if (!phasePowerGridOk) {
+      stopReason = "Fault Trip: TRIPPED_PHASE_FAILURE (Grid Power Loss)";
+      tripMotor("TRIPPED_PHASE_FAILURE");
+    }
+    // 2. Overload Protection
+    else if (i1 > RATED_FLC || i2 > RATED_FLC || i3 > RATED_FLC) {
       stopReason = "Fault Trip: TRIPPED_OVERLOAD";
       tripMotor("TRIPPED_OVERLOAD");
     }
-    // 2. Over-Temperature Protection
+    // 3. Over-Temperature Protection
     else if (temp > MAX_TEMP_LIMIT) {
       stopReason = "Fault Trip: TRIPPED_OVERTEMP";
       tripMotor("TRIPPED_OVERTEMP");
     }
-    // 3. Dry-Run Protection (Triggers if enabled AND 5-second startup grace period has elapsed)
+    // 4. Dry-Run Protection (Triggers if enabled AND 5-second startup grace period has elapsed)
     else if (dryRunProtectionEnabled && (now - motorStartTime > DRY_RUN_GRACE_MS)) {
       if (i1 < DRY_RUN_LIMIT && i2 < DRY_RUN_LIMIT && i3 < DRY_RUN_LIMIT) {
         stopReason = "Fault Trip: TRIPPED_DRY_RUN";
         tripMotor("TRIPPED_DRY_RUN");
       }
     }
-    // 4. Single Phasing Protection
+    // 5. Single Phasing Protection
     else if ((i1 > 2.0 && (i2 < 0.5 || i3 < 0.5)) || (i2 > 2.0 && (i1 < 0.5 || i3 < 0.5)) || (i3 > 2.0 && (i1 < 0.5 || i2 < 0.5))) {
       stopReason = "Fault Trip: TRIPPED_PHASE_FAILURE";
       tripMotor("TRIPPED_PHASE_FAILURE");
@@ -491,9 +514,9 @@ void publishTelemetry() {
   String ssidName = WiFi.SSID();
   String ipAddress = WiFi.localIP().toString();
 
-  float v1 = 230.0;
-  float v2 = 230.0;
-  float v3 = 230.0;
+  float v1 = phasePowerGridOk ? 230.0 : 0.0;
+  float v2 = phasePowerGridOk ? 230.0 : 0.0;
+  float v3 = phasePowerGridOk ? 230.0 : 0.0;
 
   struct tm timeinfo;
   char timeStr[32] = "NTP Syncing...";
@@ -526,6 +549,7 @@ void publishTelemetry() {
   payload += "\"scheduleStart\":\"" + String(startBuf) + "\",";
   payload += "\"scheduleStop\":\"" + String(stopBuf) + "\",";
   payload += "\"autoStartEnabled\":" + String(autoStartEnabled ? "true" : "false") + ",";
+  payload += "\"phaseGridOk\":" + String(phasePowerGridOk ? "true" : "false") + ",";
   payload += "\"dryRunProtectionEnabled\":" + String(dryRunProtectionEnabled ? "true" : "false");
   payload += "}";
 

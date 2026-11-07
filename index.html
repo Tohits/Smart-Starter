@@ -144,10 +144,22 @@
             </div>
         </div>
 
-        <!-- Toggles & Time Scheduler Controls Row -->
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-1.5 text-xs">
+        <!-- Toggles & Time Scheduler Controls Row (Includes 3-Phase Grid Power Switch) -->
+        <div class="grid grid-cols-1 sm:grid-cols-4 gap-1.5 text-xs">
+            <!-- 3-Phase Grid Power Switch -->
+            <div id="gridCard" class="bg-slate-800 border border-slate-700 px-2 py-1.5 rounded-lg shadow flex items-center justify-between gap-1 transition-colors duration-300">
+                <div class="flex items-center gap-1">
+                    <span class="text-xs">🔌</span>
+                    <h4 class="font-bold text-white text-[9px]">3-Phase Grid</h4>
+                </div>
+                <label class="relative inline-flex items-center cursor-pointer select-none">
+                    <input type="checkbox" id="gridToggle" checked onchange="toggleGridPower()" aria-label="3-Phase Grid Power Toggle" class="sr-only peer">
+                    <div class="w-8 h-4 bg-slate-400 dark:bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-emerald-500 shadow-inner"></div>
+                </label>
+            </div>
+
             <!-- Auto-Start Toggle Switch -->
-            <div id="autoStartCard" class="bg-slate-800 border border-slate-700 px-2.5 py-1.5 rounded-lg shadow flex items-center justify-between gap-1.5 transition-colors duration-300">
+            <div id="autoStartCard" class="bg-slate-800 border border-slate-700 px-2 py-1.5 rounded-lg shadow flex items-center justify-between gap-1 transition-colors duration-300">
                 <div class="flex items-center gap-1">
                     <span class="text-xs">⚡</span>
                     <h4 id="autoStartTitle" class="font-bold text-white text-[9px]">Auto Start</h4>
@@ -159,7 +171,7 @@
             </div>
 
             <!-- Dry-Run Protection Toggle Switch -->
-            <div id="dryRunCard" class="bg-slate-800 border border-slate-700 px-2.5 py-1.5 rounded-lg shadow flex items-center justify-between gap-1.5 transition-colors duration-300">
+            <div id="dryRunCard" class="bg-slate-800 border border-slate-700 px-2 py-1.5 rounded-lg shadow flex items-center justify-between gap-1 transition-colors duration-300">
                 <div class="flex items-center gap-1">
                     <span class="text-xs">💧</span>
                     <h4 id="dryRunTitle" class="font-bold text-white text-[9px]">Dry-Run</h4>
@@ -171,7 +183,7 @@
             </div>
 
             <!-- Time Scheduler Controls -->
-            <div id="scheduleCard" class="bg-slate-800 border border-slate-700 px-2.5 py-1 rounded-lg shadow flex flex-col justify-between gap-0.5 transition-colors duration-300">
+            <div id="scheduleCard" class="bg-slate-800 border border-slate-700 px-2 py-1 rounded-lg shadow flex flex-col justify-between gap-0.5 transition-colors duration-300">
                 <div class="flex items-center justify-between w-full">
                     <div class="flex items-center gap-1">
                         <span class="text-xs">⏰</span>
@@ -280,6 +292,7 @@
         let currentAutoStart = false;
         let currentDryRun = true;
         let currentScheduleEnabled = false;
+        let currentPhaseGridOk = true;
         let lastReceivedStatus = 'OFF';
         let lastNotifiedStatus = '';
         let commandTimeoutId = null;
@@ -501,6 +514,7 @@
             const footer = document.querySelector('footer');
             const themeSelect = document.getElementById('themeSelect');
             const hardwareBar = document.getElementById('hardwareBar');
+            const gridCard = document.getElementById('gridCard');
             const autoStartCard = document.getElementById('autoStartCard');
             const dryRunCard = document.getElementById('dryRunCard');
             const scheduleCard = document.getElementById('scheduleCard');
@@ -523,9 +537,10 @@
                 footer.className = "bg-slate-800 border-t border-slate-700 py-0.5 px-4 text-center text-[7px] text-slate-500 font-medium transition-colors duration-300";
                 themeSelect.className = "bg-slate-700 text-slate-100 text-[8px] px-1.5 py-0.5 rounded border border-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer shadow-sm";
                 hardwareBar.className = "bg-slate-800 border border-slate-700 px-2 py-1 rounded-lg shadow flex items-center justify-between gap-1.5 text-xs flex-wrap transition-colors duration-300";
-                autoStartCard.className = "bg-slate-800 border border-slate-700 px-2.5 py-1.5 rounded-lg shadow flex items-center justify-between gap-1.5 transition-colors duration-300";
-                dryRunCard.className = "bg-slate-800 border border-slate-700 px-2.5 py-1.5 rounded-lg shadow flex items-center justify-between gap-1.5 transition-colors duration-300";
-                scheduleCard.className = "bg-slate-800 border border-slate-700 px-2.5 py-1 rounded-lg shadow flex flex-col justify-between gap-0.5 transition-colors duration-300";
+                gridCard.className = "bg-slate-800 border border-slate-700 px-2 py-1.5 rounded-lg shadow flex items-center justify-between gap-1 transition-colors duration-300";
+                autoStartCard.className = "bg-slate-800 border border-slate-700 px-2 py-1.5 rounded-lg shadow flex items-center justify-between gap-1 transition-colors duration-300";
+                dryRunCard.className = "bg-slate-800 border border-slate-700 px-2 py-1.5 rounded-lg shadow flex items-center justify-between gap-1 transition-colors duration-300";
+                scheduleCard.className = "bg-slate-800 border border-slate-700 px-2 py-1 rounded-lg shadow flex flex-col justify-between gap-0.5 transition-colors duration-300";
                 healthPanel.className = "bg-slate-800 border border-slate-700 p-1.5 rounded-lg shadow transition-colors duration-300";
                 activityLogPanel.className = "bg-slate-800 border border-slate-700 p-1.5 rounded-lg shadow transition-colors duration-300";
                 telemetryHeading.className = "text-[8px] font-bold mb-0.5 text-slate-300 uppercase tracking-wider";
@@ -546,9 +561,10 @@
                 footer.className = "bg-white border-t border-slate-200 py-0.5 px-4 text-center text-[7px] text-slate-600 font-semibold transition-colors duration-300";
                 themeSelect.className = "bg-slate-100 text-slate-900 text-[8px] px-1.5 py-0.5 rounded border border-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer shadow-sm font-semibold";
                 hardwareBar.className = "bg-white border border-slate-200 px-2 py-1 rounded-lg shadow-sm flex items-center justify-between gap-1.5 text-xs flex-wrap transition-colors duration-300";
-                autoStartCard.className = "bg-white border border-slate-200 px-2.5 py-1.5 rounded-lg shadow-sm flex items-center justify-between gap-1.5 transition-colors duration-300";
-                dryRunCard.className = "bg-white border border-slate-200 px-2.5 py-1.5 rounded-lg shadow-sm flex items-center justify-between gap-1.5 transition-colors duration-300";
-                scheduleCard.className = "bg-white border border-slate-200 px-2.5 py-1 rounded-lg shadow-sm flex flex-col justify-between gap-0.5 transition-colors duration-300";
+                gridCard.className = "bg-white border border-slate-200 px-2 py-1.5 rounded-lg shadow-sm flex items-center justify-between gap-1 transition-colors duration-300";
+                autoStartCard.className = "bg-white border border-slate-200 px-2 py-1.5 rounded-lg shadow-sm flex items-center justify-between gap-1 transition-colors duration-300";
+                dryRunCard.className = "bg-white border border-slate-200 px-2 py-1.5 rounded-lg shadow-sm flex items-center justify-between gap-1 transition-colors duration-300";
+                scheduleCard.className = "bg-white border border-slate-200 px-2 py-1 rounded-lg shadow-sm flex flex-col justify-between gap-0.5 transition-colors duration-300";
                 healthPanel.className = "bg-white border border-slate-200 p-1.5 rounded-lg shadow-sm transition-colors duration-300";
                 activityLogPanel.className = "bg-white border border-slate-200 p-1.5 rounded-lg shadow-sm transition-colors duration-300";
                 telemetryHeading.className = "text-[8px] font-bold mb-0.5 text-slate-800 uppercase tracking-wider";
@@ -844,6 +860,13 @@
                         document.getElementById('wifiSsidContainer').classList.add('hidden');
                     }
 
+                    // 3-Phase Grid Power Status Toggle Switch
+                    if (data.phaseGridOk !== undefined) {
+                        currentPhaseGridOk = data.phaseGridOk;
+                        const gridToggle = document.getElementById('gridToggle');
+                        if (gridToggle) gridToggle.checked = currentPhaseGridOk;
+                    }
+
                     // Auto-Start Status Toggle Switch
                     if (data.autoStartEnabled !== undefined) {
                         currentAutoStart = data.autoStartEnabled;
@@ -919,6 +942,22 @@
                     statusText.innerText = "ERROR";
                 } else {
                     console.log(`Command ${state} published successfully`);
+                }
+            });
+        }
+
+        function toggleGridPower() {
+            const toggle = document.getElementById('gridToggle');
+            const nextState = toggle.checked;
+            const command = nextState ? 'PHASE_GRID_OK' : 'PHASE_GRID_FAIL';
+            showToast("3-Phase Grid Power", nextState ? "3-Phase Power Grid Normal 🟢" : "Phase Grid Power Failure / Loss 🔴", nextState ? "success" : "fault");
+
+            client.publish('smartstarter/motor1/control', command, { qos: 1 }, (err) => {
+                if (err) {
+                    alert("Failed to toggle 3-Phase Grid Power: " + err.message);
+                    toggle.checked = !nextState;
+                } else {
+                    console.log(`Grid Power command ${command} published successfully`);
                 }
             });
         }
