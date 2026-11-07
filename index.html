@@ -21,220 +21,218 @@
 <body class="bg-slate-900 text-slate-100 dark:bg-slate-900 dark:text-slate-100 h-screen overflow-hidden flex flex-col justify-between transition-colors duration-300">
 
     <!-- Floating Pop-Up SMS / Toast Alert Container -->
-    <div id="toastContainer" class="fixed top-3 left-1/2 transform -translate-x-1/2 z-50 flex flex-col gap-2 pointer-events-none max-w-sm w-full px-4"></div>
+    <div id="toastContainer" class="fixed top-2 left-1/2 transform -translate-x-1/2 z-50 flex flex-col gap-1.5 pointer-events-none max-w-xs sm:max-w-sm w-full px-3"></div>
 
     <!-- Header -->
-    <header class="bg-slate-800 border-b border-slate-700 py-1.5 px-4 shadow-md transition-colors duration-300">
+    <header class="bg-slate-800 border-b border-slate-700 py-1 px-3 shadow-md transition-colors duration-300">
         <div class="max-w-4xl mx-auto flex flex-row justify-between items-center gap-2">
             <div class="flex items-center gap-2 flex-wrap">
-                <h1 class="text-sm sm:text-base font-bold flex items-center gap-1">
+                <h1 class="text-xs sm:text-sm font-bold flex items-center gap-1">
                     ⚙️ Smart Motor Starter
                 </h1>
                 <!-- Connection State Badge -->
-                <span id="connBadge" class="px-2 py-0.5 rounded-full text-[9px] font-semibold bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center gap-1">
+                <span id="connBadge" class="px-1.5 py-0.5 rounded-full text-[8px] font-semibold bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center gap-1">
                     <span id="connDot" class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
                     <span id="connText">Connecting...</span>
                 </span>
             </div>
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-1.5">
                 <!-- Mobile Push Notification Permission Toggle -->
-                <button onclick="requestNotificationPermission()" class="bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 text-[9px] px-2 py-0.5 rounded-lg font-semibold transition flex items-center gap-1">
+                <button onclick="requestNotificationPermission()" class="bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 text-[8px] px-1.5 py-0.5 rounded font-semibold transition flex items-center gap-1">
                     🔔 Notify
                 </button>
 
                 <!-- Theme Mode Selector (Auto / Dark / Light) -->
-                <select id="themeSelect" aria-label="Theme Selector" onchange="changeTheme(this.value)" class="bg-slate-700 text-slate-100 text-[9px] px-2 py-0.5 rounded-lg border border-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer shadow-sm">
+                <select id="themeSelect" aria-label="Theme Selector" onchange="changeTheme(this.value)" class="bg-slate-700 text-slate-100 text-[8px] px-1.5 py-0.5 rounded border border-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer shadow-sm">
                     <option value="auto">🌗 Auto</option>
                     <option value="dark">🌙 Dark</option>
                     <option value="light">☀️ Light</option>
                 </select>
 
                 <!-- Compact Install App Button (Hidden by default) -->
-                <button id="installBtn" class="hidden bg-blue-600 hover:bg-blue-500 text-white px-2 py-0.5 rounded-lg text-[9px] font-medium transition flex items-center gap-1 shadow">
+                <button id="installBtn" class="hidden bg-blue-600 hover:bg-blue-500 text-white px-1.5 py-0.5 rounded text-[8px] font-medium transition flex items-center gap-1 shadow">
                     <span>📱</span> Install
                 </button>
             </div>
         </div>
     </header>
 
-    <!-- Main Content (100% Single Viewport - No Scroll & No Overflow) -->
-    <main class="max-w-4xl mx-auto px-3 py-1 w-full flex-grow flex flex-col justify-evenly gap-1.5 overflow-hidden">
+    <!-- Main Content (100% Single Viewport - Absolutely Zero Vertical Scroll) -->
+    <main class="max-w-4xl mx-auto px-2.5 py-1 w-full flex-grow flex flex-col justify-between gap-1 overflow-hidden">
 
         <!-- Status Card -->
-        <div id="statusCard" class="py-1.5 px-3 rounded-xl border border-slate-700 bg-slate-800 shadow-md text-center transition-all duration-200">
-            <p id="statusLabel" class="text-slate-400 text-[8px] uppercase tracking-wider font-semibold mb-0.5">Motor Status</p>
-            <h2 id="statusText" class="text-xl sm:text-2xl font-black tracking-wide">WAITING FOR DATA...</h2>
-            <p id="lastSync" class="text-slate-400 text-[8px] mt-0.5 font-medium">Last Sync: Never</p>
+        <div id="statusCard" class="py-1 px-2.5 rounded-lg border border-slate-700 bg-slate-800 shadow-md text-center transition-all duration-200">
+            <p id="statusLabel" class="text-slate-400 text-[8px] uppercase tracking-wider font-semibold">Motor Status</p>
+            <h2 id="statusText" class="text-lg sm:text-xl font-black tracking-wide leading-tight">WAITING FOR DATA...</h2>
+            <p id="lastSync" class="text-slate-400 text-[8px] font-medium">Last Sync: Never</p>
         </div>
 
         <!-- Smart Motor Health Dashboard Panel -->
-        <div id="healthPanel" class="bg-slate-800 border border-slate-700 p-2 rounded-xl shadow transition-colors duration-300">
-            <div class="flex items-center justify-between gap-2 mb-1">
-                <h3 class="text-[9px] font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1">
+        <div id="healthPanel" class="bg-slate-800 border border-slate-700 p-1.5 rounded-lg shadow transition-colors duration-300">
+            <div class="flex items-center justify-between gap-2 mb-0.5">
+                <h3 class="text-[8px] font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1">
                     🏥 Smart Motor Health Dashboard
                 </h3>
-                <span id="healthScoreBadge" class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                <span id="healthScoreBadge" class="px-1.5 py-0.5 rounded-full text-[8px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
                     100% EXCELLENT
                 </span>
             </div>
             <!-- Health Metrics Grid -->
-            <div class="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-center text-xs">
-                <div class="bg-slate-900/60 p-1.5 rounded-lg border border-slate-700/60">
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-1 text-center text-xs">
+                <div class="bg-slate-900/60 p-1 rounded border border-slate-700/60">
                     <p class="text-slate-400 text-[8px] font-medium">Phase Balance</p>
-                    <p id="phaseBalanceVal" class="text-xs font-bold text-emerald-400 mt-0.5">100% Balanced</p>
+                    <p id="phaseBalanceVal" class="text-[10px] font-bold text-emerald-400">100% Balanced</p>
                 </div>
-                <div class="bg-slate-900/60 p-1.5 rounded-lg border border-slate-700/60">
+                <div class="bg-slate-900/60 p-1 rounded border border-slate-700/60">
                     <p class="text-slate-400 text-[8px] font-medium">Thermal State</p>
-                    <p id="thermalStressVal" class="text-xs font-bold text-emerald-400 mt-0.5">Normal</p>
+                    <p id="thermalStressVal" class="text-[10px] font-bold text-emerald-400">Normal</p>
                 </div>
-                <div class="bg-slate-900/60 p-1.5 rounded-lg border border-slate-700/60">
+                <div class="bg-slate-900/60 p-1 rounded border border-slate-700/60">
                     <p class="text-slate-400 text-[8px] font-medium">Overload Risk</p>
-                    <p id="overloadRiskVal" class="text-xs font-bold text-emerald-400 mt-0.5">Low (0%)</p>
+                    <p id="overloadRiskVal" class="text-[10px] font-bold text-emerald-400">Low (0%)</p>
                 </div>
-                <div class="bg-slate-900/60 p-1.5 rounded-lg border border-slate-700/60">
+                <div class="bg-slate-900/60 p-1 rounded border border-slate-700/60">
                     <p class="text-slate-400 text-[8px] font-medium">Diagnostic Note</p>
-                    <p id="healthInsightVal" class="text-[8px] font-semibold text-slate-300 truncate mt-0.5">System Healthy</p>
+                    <p id="healthInsightVal" class="text-[8px] font-semibold text-slate-300 truncate">System Healthy</p>
                 </div>
             </div>
         </div>
 
         <!-- Real-Time Metrics Row: Motor Temp, Energy (kWh), Running Hours -->
-        <div class="grid grid-cols-3 gap-2 text-center text-xs">
+        <div class="grid grid-cols-3 gap-1.5 text-center text-xs">
             <!-- Motor Temp -->
-            <div class="telemetryCard bg-slate-800 border border-slate-700 p-1.5 rounded-xl shadow">
+            <div class="telemetryCard bg-slate-800 border border-slate-700 p-1 rounded-lg shadow">
                 <p class="phaseLabel text-slate-400 text-[8px] font-semibold">🌡️ Motor Temp</p>
-                <p id="motorTemp" class="text-sm font-bold text-amber-400 mt-0.5">35.0 °C</p>
+                <p id="motorTemp" class="text-xs font-bold text-amber-400">35.0 °C</p>
             </div>
             <!-- Energy Consumption (kWh) -->
-            <div class="telemetryCard bg-slate-800 border border-slate-700 p-1.5 rounded-xl shadow">
+            <div class="telemetryCard bg-slate-800 border border-slate-700 p-1 rounded-lg shadow">
                 <p class="phaseLabel text-slate-400 text-[8px] font-semibold">⚡ Energy</p>
-                <p id="energykWh" class="text-sm font-bold text-emerald-400 mt-0.5">0.00 kWh</p>
+                <p id="energykWh" class="text-xs font-bold text-emerald-400">0.00 kWh</p>
             </div>
             <!-- Motor Running Hours -->
-            <div class="telemetryCard bg-slate-800 border border-slate-700 p-1.5 rounded-xl shadow">
+            <div class="telemetryCard bg-slate-800 border border-slate-700 p-1 rounded-lg shadow">
                 <p class="phaseLabel text-slate-400 text-[8px] font-semibold">⏱️ Motor Run</p>
-                <p id="motorRunHours" class="text-sm font-bold text-indigo-400 mt-0.5">0h 0m</p>
+                <p id="motorRunHours" class="text-xs font-bold text-indigo-400">0h 0m</p>
             </div>
         </div>
 
         <!-- Hardware Status Row -->
-        <div id="hardwareBar" class="bg-slate-800 border border-slate-700 px-2.5 py-1.5 rounded-xl shadow flex items-center justify-between gap-2 text-xs flex-wrap transition-colors duration-300">
-            <div class="flex items-center gap-1.5 flex-wrap">
-                <span id="espLabel" class="text-slate-400 font-semibold text-[10px]">ESP32:</span>
-                <span id="espHealthBadge" class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-400">Offline</span>
-                <div id="wifiSsidContainer" class="hidden font-semibold text-emerald-400 bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-500/30 text-[9px]">
+        <div id="hardwareBar" class="bg-slate-800 border border-slate-700 px-2 py-1 rounded-lg shadow flex items-center justify-between gap-1.5 text-xs flex-wrap transition-colors duration-300">
+            <div class="flex items-center gap-1 flex-wrap">
+                <span id="espLabel" class="text-slate-400 font-semibold text-[9px]">ESP32:</span>
+                <span id="espHealthBadge" class="px-1.5 py-0.5 rounded text-[8px] font-bold bg-amber-500/20 text-amber-400">Offline</span>
+                <div id="wifiSsidContainer" class="hidden font-semibold text-emerald-400 bg-emerald-950/40 px-1.5 py-0.5 rounded border border-emerald-500/30 text-[8px]">
                     📶 <span id="wifiSsid" class="text-white font-bold">1+10R</span>
                 </div>
-                <div id="ipContainer" class="font-mono font-bold text-blue-300 bg-blue-950/40 px-2 py-0.5 rounded border border-blue-500/30 text-[9px]">
+                <div id="ipContainer" class="font-mono font-bold text-blue-300 bg-blue-950/40 px-1.5 py-0.5 rounded border border-blue-500/30 text-[8px]">
                     🌐 IP: <span id="espIpBadge">10.146.68.77</span>
                 </div>
             </div>
-            <div class="flex items-center gap-1.5">
-                <div id="uptimeLabel" class="text-[9px] text-slate-300 mr-1">⏱️ <span id="espUptime" class="font-bold text-white">--</span></div>
-                <button onclick="rebootEsp()" class="bg-rose-600/20 hover:bg-rose-600/30 text-rose-400 border border-rose-500/30 px-2 py-0.5 rounded text-[9px] font-semibold transition">
+            <div class="flex items-center gap-1">
+                <div id="uptimeLabel" class="text-[8px] text-slate-300 mr-1">⏱️ <span id="espUptime" class="font-bold text-white">--</span></div>
+                <button onclick="rebootEsp()" class="bg-rose-600/20 hover:bg-rose-600/30 text-rose-400 border border-rose-500/30 px-1.5 py-0.5 rounded text-[8px] font-semibold transition">
                     🔄 Reboot
                 </button>
-                <button onclick="openOtaModal()" class="bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 px-2 py-0.5 rounded text-[9px] font-semibold transition">
+                <button onclick="openOtaModal()" class="bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 px-1.5 py-0.5 rounded text-[8px] font-semibold transition">
                     📡 OTA Update
                 </button>
             </div>
         </div>
 
         <!-- Toggles & Time Scheduler Controls Row -->
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-1.5 text-xs">
             <!-- Auto-Start Toggle Switch -->
-            <div id="autoStartCard" class="bg-slate-800 border border-slate-700 px-3 py-2.5 rounded-xl shadow flex items-center justify-between gap-2 transition-colors duration-300">
-                <div class="flex items-center gap-1.5">
-                    <span class="text-sm">⚡</span>
-                    <h4 id="autoStartTitle" class="font-bold text-white text-[10px]">Auto Start</h4>
+            <div id="autoStartCard" class="bg-slate-800 border border-slate-700 px-2.5 py-1.5 rounded-lg shadow flex items-center justify-between gap-1.5 transition-colors duration-300">
+                <div class="flex items-center gap-1">
+                    <span class="text-xs">⚡</span>
+                    <h4 id="autoStartTitle" class="font-bold text-white text-[9px]">Auto Start</h4>
                 </div>
                 <label class="relative inline-flex items-center cursor-pointer select-none">
                     <input type="checkbox" id="autoStartToggle" onchange="toggleAutoStart()" aria-label="Auto Start Toggle" class="sr-only peer">
-                    <div class="w-9 h-5 bg-slate-400 dark:bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500 shadow-inner"></div>
+                    <div class="w-8 h-4 bg-slate-400 dark:bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-emerald-500 shadow-inner"></div>
                 </label>
             </div>
 
             <!-- Dry-Run Protection Toggle Switch -->
-            <div id="dryRunCard" class="bg-slate-800 border border-slate-700 px-3 py-2.5 rounded-xl shadow flex items-center justify-between gap-2 transition-colors duration-300">
-                <div class="flex items-center gap-1.5">
-                    <span class="text-sm">💧</span>
-                    <h4 id="dryRunTitle" class="font-bold text-white text-[10px]">Dry-Run</h4>
+            <div id="dryRunCard" class="bg-slate-800 border border-slate-700 px-2.5 py-1.5 rounded-lg shadow flex items-center justify-between gap-1.5 transition-colors duration-300">
+                <div class="flex items-center gap-1">
+                    <span class="text-xs">💧</span>
+                    <h4 id="dryRunTitle" class="font-bold text-white text-[9px]">Dry-Run</h4>
                 </div>
                 <label class="relative inline-flex items-center cursor-pointer select-none">
                     <input type="checkbox" id="dryRunToggle" onchange="toggleDryRun()" aria-label="Dry-Run Protection Toggle" class="sr-only peer">
-                    <div class="w-9 h-5 bg-slate-400 dark:bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500 shadow-inner"></div>
+                    <div class="w-8 h-4 bg-slate-400 dark:bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-emerald-500 shadow-inner"></div>
                 </label>
             </div>
 
             <!-- Time Scheduler Controls -->
-            <div id="scheduleCard" class="bg-slate-800 border border-slate-700 px-3 py-1.5 rounded-xl shadow flex flex-col justify-between gap-1 transition-colors duration-300">
+            <div id="scheduleCard" class="bg-slate-800 border border-slate-700 px-2.5 py-1 rounded-lg shadow flex flex-col justify-between gap-0.5 transition-colors duration-300">
                 <div class="flex items-center justify-between w-full">
                     <div class="flex items-center gap-1">
                         <span class="text-xs">⏰</span>
-                        <h4 class="font-bold text-white text-[10px]">Schedule</h4>
+                        <h4 class="font-bold text-white text-[9px]">Schedule</h4>
                     </div>
                     <label class="relative inline-flex items-center cursor-pointer select-none">
                         <input type="checkbox" id="schedToggle" onchange="toggleSchedule()" aria-label="Schedule Toggle" class="sr-only peer">
-                        <div class="w-9 h-5 bg-slate-400 dark:bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500 shadow-inner"></div>
+                        <div class="w-8 h-4 bg-slate-400 dark:bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-emerald-500 shadow-inner"></div>
                     </label>
                 </div>
-                <div class="flex items-center justify-center gap-1 w-full mt-0.5">
-                    <input type="time" id="schedStartTime" value="06:30" aria-label="Schedule Start Time" class="bg-slate-900 border border-slate-700 text-white text-[9px] px-1 py-0.5 rounded font-mono text-center flex-1">
-                    <span class="text-[8px] text-slate-400">to</span>
-                    <input type="time" id="schedStopTime" value="18:00" aria-label="Schedule Stop Time" class="bg-slate-900 border border-slate-700 text-white text-[9px] px-1 py-0.5 rounded font-mono text-center flex-1">
+                <div class="flex items-center justify-center gap-1 w-full">
+                    <input type="time" id="schedStartTime" value="06:30" aria-label="Schedule Start Time" class="bg-slate-900 border border-slate-700 text-white text-[8px] px-1 py-0.5 rounded font-mono text-center flex-1">
+                    <span class="text-[7px] text-slate-400">to</span>
+                    <input type="time" id="schedStopTime" value="18:00" aria-label="Schedule Stop Time" class="bg-slate-900 border border-slate-700 text-white text-[8px] px-1 py-0.5 rounded font-mono text-center flex-1">
                 </div>
             </div>
         </div>
 
-        <!-- System Activity & Event Log Panel -->
-        <div id="activityLogPanel" class="bg-slate-800 border border-slate-700 p-2 rounded-xl shadow transition-colors duration-300">
-            <div class="flex items-center justify-between gap-2 mb-1">
-                <h3 class="text-[9px] font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1">
+        <!-- System Activity & Event Log Panel (Super Compact Single Viewport) -->
+        <div id="activityLogPanel" class="bg-slate-800 border border-slate-700 p-1.5 rounded-lg shadow transition-colors duration-300">
+            <div class="flex items-center justify-between gap-2 mb-0.5">
+                <h3 class="text-[8px] font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1">
                     📋 System Activity & Event Log
                 </h3>
-                <div class="flex items-center gap-1.5">
-                    <button onclick="clearActivityLogs()" class="bg-slate-700 hover:bg-slate-600 text-slate-300 text-[8px] px-2 py-0.5 rounded font-semibold transition">
-                        🗑️ Clear Log
-                    </button>
-                </div>
+                <button onclick="clearActivityLogs()" class="bg-slate-700 hover:bg-slate-600 text-slate-300 text-[7px] px-1.5 py-0.5 rounded font-semibold transition">
+                    🗑️ Clear
+                </button>
             </div>
-            <!-- Scrollable Log Container -->
-            <div id="logContainer" class="bg-slate-900/80 border border-slate-700/70 rounded-lg p-1.5 h-16 overflow-y-auto space-y-1 text-[9px] font-mono select-text">
-                <div class="text-slate-400 italic text-center py-2">System initialized. Waiting for events...</div>
+            <!-- Scrollable Log Container (Compact 2-line auto-scroll) -->
+            <div id="logContainer" class="bg-slate-900/80 border border-slate-700/70 rounded p-1 h-9 overflow-y-auto space-y-0.5 text-[8px] font-mono select-text">
+                <div class="text-slate-400 italic text-center py-0.5">System initialized. Waiting for events...</div>
             </div>
         </div>
 
         <!-- 3-Phase Current & Voltage Telemetry -->
         <div>
-            <h3 id="telemetryHeading" class="text-[9px] font-bold mb-1 text-slate-300 uppercase tracking-wider">3-Phase Voltage & Current Telemetry</h3>
-            <div class="grid grid-cols-3 gap-2">
+            <h3 id="telemetryHeading" class="text-[8px] font-bold mb-0.5 text-slate-300 uppercase tracking-wider">3-Phase Voltage & Current Telemetry</h3>
+            <div class="grid grid-cols-3 gap-1.5">
                 <!-- Phase 1 -->
-                <div class="telemetryCard bg-slate-800 border border-slate-700 p-1.5 rounded-xl shadow text-center transition-colors duration-300">
-                    <p class="phaseLabel text-slate-400 text-[9px] font-semibold">Phase 1 (R)</p>
-                    <p id="phase1Val" class="text-base sm:text-lg font-bold text-blue-400 mt-0.5">0.0 <span class="unitLabel text-[9px] font-normal text-slate-400">A</span></p>
-                    <p id="v1Val" class="text-[9px] text-slate-400 font-medium">230.0 V</p>
+                <div class="telemetryCard bg-slate-800 border border-slate-700 p-1 rounded-lg shadow text-center transition-colors duration-300">
+                    <p class="phaseLabel text-slate-400 text-[8px] font-semibold">Phase 1 (R)</p>
+                    <p id="phase1Val" class="text-xs sm:text-sm font-bold text-blue-400">0.0 <span class="unitLabel text-[8px] font-normal text-slate-400">A</span></p>
+                    <p id="v1Val" class="text-[8px] text-slate-400 font-medium">230.0 V</p>
                 </div>
                 <!-- Phase 2 -->
-                <div class="telemetryCard bg-slate-800 border border-slate-700 p-1.5 rounded-xl shadow text-center transition-colors duration-300">
-                    <p class="phaseLabel text-slate-400 text-[9px] font-semibold">Phase 2 (Y)</p>
-                    <p id="phase2Val" class="text-base sm:text-lg font-bold text-blue-400 mt-0.5">0.0 <span class="unitLabel text-[9px] font-normal text-slate-400">A</span></p>
-                    <p id="v2Val" class="text-[9px] text-slate-400 font-medium">230.0 V</p>
+                <div class="telemetryCard bg-slate-800 border border-slate-700 p-1 rounded-lg shadow text-center transition-colors duration-300">
+                    <p class="phaseLabel text-slate-400 text-[8px] font-semibold">Phase 2 (Y)</p>
+                    <p id="phase2Val" class="text-xs sm:text-sm font-bold text-blue-400">0.0 <span class="unitLabel text-[8px] font-normal text-slate-400">A</span></p>
+                    <p id="v2Val" class="text-[8px] text-slate-400 font-medium">230.0 V</p>
                 </div>
                 <!-- Phase 3 -->
-                <div class="telemetryCard bg-slate-800 border border-slate-700 p-1.5 rounded-xl shadow text-center transition-colors duration-300">
-                    <p class="phaseLabel text-slate-400 text-[9px] font-semibold">Phase 3 (B)</p>
-                    <p id="phase3Val" class="text-base sm:text-lg font-bold text-blue-400 mt-0.5">0.0 <span class="unitLabel text-[9px] font-normal text-slate-400">A</span></p>
-                    <p id="v3Val" class="text-[9px] text-slate-400 font-medium">230.0 V</p>
+                <div class="telemetryCard bg-slate-800 border border-slate-700 p-1 rounded-lg shadow text-center transition-colors duration-300">
+                    <p class="phaseLabel text-slate-400 text-[8px] font-semibold">Phase 3 (B)</p>
+                    <p id="phase3Val" class="text-xs sm:text-sm font-bold text-blue-400">0.0 <span class="unitLabel text-[8px] font-normal text-slate-400">A</span></p>
+                    <p id="v3Val" class="text-[8px] text-slate-400 font-medium">230.0 V</p>
                 </div>
             </div>
         </div>
 
         <!-- Control Buttons -->
         <div class="grid grid-cols-2 gap-2">
-            <button onclick="sendControl('ON')" class="bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white py-2.5 rounded-xl font-bold text-base shadow-lg transition flex items-center justify-center gap-1.5">
+            <button onclick="sendControl('ON')" class="bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white py-2 rounded-lg font-bold text-sm shadow-lg transition flex items-center justify-center gap-1">
                 🟢 START MOTOR
             </button>
-            <button onclick="sendControl('OFF')" class="bg-rose-600 hover:bg-rose-500 active:scale-95 text-white py-2.5 rounded-xl font-bold text-base shadow-lg transition flex items-center justify-center gap-1.5">
+            <button onclick="sendControl('OFF')" class="bg-rose-600 hover:bg-rose-500 active:scale-95 text-white py-2 rounded-lg font-bold text-sm shadow-lg transition flex items-center justify-center gap-1">
                 🔴 STOP MOTOR
             </button>
         </div>
@@ -243,33 +241,33 @@
 
     <!-- Direct OTA Wireless Portal Modal -->
     <div id="otaModal" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-        <div class="bg-slate-800 border border-slate-700 p-5 rounded-2xl max-w-md w-full shadow-2xl relative text-slate-100">
-            <button onclick="closeOtaModal()" class="absolute top-3 right-3 text-slate-400 hover:text-white font-bold text-base">✕</button>
-            <h3 class="text-base font-bold flex items-center gap-2 mb-1.5 text-blue-400">
+        <div class="bg-slate-800 border border-slate-700 p-4 rounded-xl max-w-md w-full shadow-2xl relative text-slate-100">
+            <button onclick="closeOtaModal()" class="absolute top-3 right-3 text-slate-400 hover:text-white font-bold text-sm">✕</button>
+            <h3 class="text-sm font-bold flex items-center gap-2 mb-1.5 text-blue-400">
                 📡 Direct Wireless OTA Update Portal
             </h3>
-            <p class="text-xs text-slate-300 mb-3 leading-relaxed">
+            <p class="text-xs text-slate-300 mb-2 leading-relaxed">
                 Click below to open your ESP32's local OTA portal directly in a new tab:
             </p>
 
-            <div class="bg-slate-900 border border-slate-700 p-3 rounded-xl mb-4 text-center">
-                <a id="otaDirectLink" href="http://10.146.68.77/update" target="_blank" class="text-sm font-mono font-bold text-emerald-400 hover:underline break-all">
+            <div class="bg-slate-900 border border-slate-700 p-2.5 rounded-lg mb-3 text-center">
+                <a id="otaDirectLink" href="http://10.146.68.77/update" target="_blank" class="text-xs font-mono font-bold text-emerald-400 hover:underline break-all">
                     http://<span id="otaIpDisplay">10.146.68.77</span>/update 🔗
                 </a>
             </div>
 
-            <button onclick="openOtaTab()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2.5 rounded-xl text-xs transition shadow-lg mb-2 flex items-center justify-center gap-1.5">
+            <button onclick="openOtaTab()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 rounded-lg text-xs transition shadow-lg mb-1.5 flex items-center justify-center gap-1">
                 🚀 Open Local OTA Update Portal
             </button>
 
-            <button onclick="closeOtaModal()" class="w-full bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold py-1.5 rounded-xl text-xs transition">
+            <button onclick="closeOtaModal()" class="w-full bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold py-1 rounded-lg text-xs transition">
                 Close
             </button>
         </div>
     </div>
 
     <!-- Footer -->
-    <footer class="bg-slate-800 border-t border-slate-700 py-1 px-4 text-center text-[8px] text-slate-500 font-medium transition-colors duration-300">
+    <footer class="bg-slate-800 border-t border-slate-700 py-0.5 px-4 text-center text-[7px] text-slate-500 font-medium transition-colors duration-300">
         Smart Starter Global Cloud Dashboard &bull; Powered by HiveMQ Cloud & Vercel
     </footer>
 
@@ -289,7 +287,7 @@
             const timeStr = new Date().toLocaleTimeString();
             const logEntry = { time: timeStr, message: message, type: type };
             activityLogs.unshift(logEntry);
-            if (activityLogs.length > 50) activityLogs.pop(); // Keep last 50 events
+            if (activityLogs.length > 50) activityLogs.pop();
 
             renderActivityLogs();
         }
@@ -299,7 +297,7 @@
             if (!logContainer) return;
 
             if (activityLogs.length === 0) {
-                logContainer.innerHTML = '<div class="text-slate-400 italic text-center py-2">No activity logs recorded.</div>';
+                logContainer.innerHTML = '<div class="text-slate-400 italic text-center py-0.5">No activity logs recorded.</div>';
                 return;
             }
 
@@ -310,8 +308,8 @@
                 else if (entry.type === 'error' || entry.type === 'fault') colorClass = 'text-rose-400 font-bold';
                 else if (entry.type === 'warning') colorClass = 'text-amber-400 font-bold';
 
-                html += `<div class="flex items-center gap-2 border-b border-slate-800/80 pb-0.5 mb-0.5">
-                    <span class="text-slate-500 text-[8px]">[${entry.time}]</span>
+                html += `<div class="flex items-center gap-1.5 border-b border-slate-800/80 pb-0.5 mb-0.5">
+                    <span class="text-slate-500 text-[7px]">[${entry.time}]</span>
                     <span class="${colorClass}">${entry.message}</span>
                 </div>`;
             });
@@ -347,16 +345,16 @@
                 icon = '⚠️';
             }
 
-            toast.className = `pointer-events-auto border-2 ${borderClass} p-2.5 rounded-xl shadow-2xl backdrop-blur-md flex items-center justify-between gap-3 text-xs transition-all duration-300 transform translate-y-0 opacity-100 font-bold`;
+            toast.className = `pointer-events-auto border-2 ${borderClass} p-2 rounded-xl shadow-2xl backdrop-blur-md flex items-center justify-between gap-2.5 text-xs transition-all duration-300 transform translate-y-0 opacity-100 font-bold`;
             toast.innerHTML = `
                 <div class="flex items-center gap-2">
-                    <span class="text-sm">${icon}</span>
+                    <span class="text-xs">${icon}</span>
                     <div>
-                        <p class="font-black text-[11px] leading-tight">${title}</p>
-                        <p class="text-[9px] font-semibold opacity-90 leading-tight mt-0.5">${message}</p>
+                        <p class="font-black text-[10px] leading-tight">${title}</p>
+                        <p class="text-[8px] font-semibold opacity-90 leading-tight mt-0.5">${message}</p>
                     </div>
                 </div>
-                <button onclick="this.parentElement.remove()" class="text-slate-400 hover:text-white font-bold ml-2">✕</button>
+                <button onclick="this.parentElement.remove()" class="text-slate-400 hover:text-white font-bold ml-2 text-xs">✕</button>
             `;
 
             container.appendChild(toast);
@@ -449,13 +447,13 @@
             insightEl.innerText = insight;
 
             if (score >= 90) {
-                badge.className = "px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30";
+                badge.className = "px-1.5 py-0.5 rounded-full text-[8px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30";
                 badge.innerText = `${score}% EXCELLENT`;
             } else if (score >= 60) {
-                badge.className = "px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30";
+                badge.className = "px-1.5 py-0.5 rounded-full text-[8px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30";
                 badge.innerText = `${score}% WARNING`;
             } else {
-                badge.className = "px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30";
+                badge.className = "px-1.5 py-0.5 rounded-full text-[8px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30";
                 badge.innerText = `${score}% CRITICAL`;
             }
         }
@@ -517,48 +515,48 @@
             if (isDark) {
                 html.classList.add('dark');
                 body.className = "bg-slate-900 text-slate-100 h-screen overflow-hidden flex flex-col justify-between transition-colors duration-300";
-                header.className = "bg-slate-800 border-b border-slate-700 py-1.5 px-4 shadow-md transition-colors duration-300";
-                footer.className = "bg-slate-800 border-t border-slate-700 py-1 px-4 text-center text-[8px] text-slate-500 font-medium transition-colors duration-300";
-                themeSelect.className = "bg-slate-700 text-slate-100 text-[9px] px-2 py-0.5 rounded-lg border border-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer shadow-sm";
-                hardwareBar.className = "bg-slate-800 border border-slate-700 px-2.5 py-1.5 rounded-xl shadow flex items-center justify-between gap-2 text-xs flex-wrap transition-colors duration-300";
-                autoStartCard.className = "bg-slate-800 border border-slate-700 px-3 py-2.5 rounded-xl shadow flex items-center justify-between gap-2 transition-colors duration-300";
-                dryRunCard.className = "bg-slate-800 border border-slate-700 px-3 py-2.5 rounded-xl shadow flex items-center justify-between gap-2 transition-colors duration-300";
-                scheduleCard.className = "bg-slate-800 border border-slate-700 px-3 py-1.5 rounded-xl shadow flex flex-col justify-between gap-1 transition-colors duration-300";
-                healthPanel.className = "bg-slate-800 border border-slate-700 p-2 rounded-xl shadow transition-colors duration-300";
-                activityLogPanel.className = "bg-slate-800 border border-slate-700 p-2 rounded-xl shadow transition-colors duration-300";
-                telemetryHeading.className = "text-[9px] font-bold mb-1 text-slate-300 uppercase tracking-wider";
-                espLabel.className = "text-slate-400 font-semibold text-[10px]";
-                uptimeLabel.className = "text-[9px] text-slate-300 mr-1";
+                header.className = "bg-slate-800 border-b border-slate-700 py-1 px-3 shadow-md transition-colors duration-300";
+                footer.className = "bg-slate-800 border-t border-slate-700 py-0.5 px-4 text-center text-[7px] text-slate-500 font-medium transition-colors duration-300";
+                themeSelect.className = "bg-slate-700 text-slate-100 text-[8px] px-1.5 py-0.5 rounded border border-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer shadow-sm";
+                hardwareBar.className = "bg-slate-800 border border-slate-700 px-2 py-1 rounded-lg shadow flex items-center justify-between gap-1.5 text-xs flex-wrap transition-colors duration-300";
+                autoStartCard.className = "bg-slate-800 border border-slate-700 px-2.5 py-1.5 rounded-lg shadow flex items-center justify-between gap-1.5 transition-colors duration-300";
+                dryRunCard.className = "bg-slate-800 border border-slate-700 px-2.5 py-1.5 rounded-lg shadow flex items-center justify-between gap-1.5 transition-colors duration-300";
+                scheduleCard.className = "bg-slate-800 border border-slate-700 px-2.5 py-1 rounded-lg shadow flex flex-col justify-between gap-0.5 transition-colors duration-300";
+                healthPanel.className = "bg-slate-800 border border-slate-700 p-1.5 rounded-lg shadow transition-colors duration-300";
+                activityLogPanel.className = "bg-slate-800 border border-slate-700 p-1.5 rounded-lg shadow transition-colors duration-300";
+                telemetryHeading.className = "text-[8px] font-bold mb-0.5 text-slate-300 uppercase tracking-wider";
+                espLabel.className = "text-slate-400 font-semibold text-[9px]";
+                uptimeLabel.className = "text-[8px] text-slate-300 mr-1";
                 espUptime.className = "font-bold text-white";
-                autoStartTitle.className = "font-bold text-white text-[10px]";
-                dryRunTitle.className = "font-bold text-white text-[10px]";
+                autoStartTitle.className = "font-bold text-white text-[9px]";
+                dryRunTitle.className = "font-bold text-white text-[9px]";
 
-                telemetryCards.forEach(c => c.className = "telemetryCard bg-slate-800 border border-slate-700 p-1.5 rounded-xl shadow text-center transition-colors duration-300");
-                phaseLabels.forEach(p => p.className = "phaseLabel text-slate-400 text-[9px] font-semibold");
-                unitLabels.forEach(u => u.className = "unitLabel text-[9px] font-normal text-slate-400");
+                telemetryCards.forEach(c => c.className = "telemetryCard bg-slate-800 border border-slate-700 p-1 rounded-lg shadow text-center transition-colors duration-300");
+                phaseLabels.forEach(p => p.className = "phaseLabel text-slate-400 text-[8px] font-semibold");
+                unitLabels.forEach(u => u.className = "unitLabel text-[8px] font-normal text-slate-400");
                 themeColor.setAttribute('content', '#1e293b');
             } else {
                 html.classList.remove('dark');
                 body.className = "bg-slate-100 text-slate-900 h-screen overflow-hidden flex flex-col justify-between transition-colors duration-300";
-                header.className = "bg-white border-b border-slate-200 py-1.5 px-4 shadow-sm transition-colors duration-300";
-                footer.className = "bg-white border-t border-slate-200 py-1 px-4 text-center text-[8px] text-slate-600 font-semibold transition-colors duration-300";
-                themeSelect.className = "bg-slate-100 text-slate-900 text-[9px] px-2 py-0.5 rounded-lg border border-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer shadow-sm font-semibold";
-                hardwareBar.className = "bg-white border border-slate-200 px-2.5 py-1.5 rounded-xl shadow-sm flex items-center justify-between gap-2 text-xs flex-wrap transition-colors duration-300";
-                autoStartCard.className = "bg-white border border-slate-200 px-3 py-2.5 rounded-xl shadow-sm flex items-center justify-between gap-2 transition-colors duration-300";
-                dryRunCard.className = "bg-white border border-slate-200 px-3 py-2.5 rounded-xl shadow-sm flex items-center justify-between gap-2 transition-colors duration-300";
-                scheduleCard.className = "bg-white border border-slate-200 px-3 py-1.5 rounded-xl shadow-sm flex flex-col justify-between gap-1 transition-colors duration-300";
-                healthPanel.className = "bg-white border border-slate-200 p-2 rounded-xl shadow-sm transition-colors duration-300";
-                activityLogPanel.className = "bg-white border border-slate-200 p-2 rounded-xl shadow-sm transition-colors duration-300";
-                telemetryHeading.className = "text-[9px] font-bold mb-1 text-slate-800 uppercase tracking-wider";
-                espLabel.className = "text-slate-700 font-semibold text-[10px]";
-                uptimeLabel.className = "text-[9px] text-slate-700 font-medium mr-1";
+                header.className = "bg-white border-b border-slate-200 py-1 px-3 shadow-sm transition-colors duration-300";
+                footer.className = "bg-white border-t border-slate-200 py-0.5 px-4 text-center text-[7px] text-slate-600 font-semibold transition-colors duration-300";
+                themeSelect.className = "bg-slate-100 text-slate-900 text-[8px] px-1.5 py-0.5 rounded border border-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer shadow-sm font-semibold";
+                hardwareBar.className = "bg-white border border-slate-200 px-2 py-1 rounded-lg shadow-sm flex items-center justify-between gap-1.5 text-xs flex-wrap transition-colors duration-300";
+                autoStartCard.className = "bg-white border border-slate-200 px-2.5 py-1.5 rounded-lg shadow-sm flex items-center justify-between gap-1.5 transition-colors duration-300";
+                dryRunCard.className = "bg-white border border-slate-200 px-2.5 py-1.5 rounded-lg shadow-sm flex items-center justify-between gap-1.5 transition-colors duration-300";
+                scheduleCard.className = "bg-white border border-slate-200 px-2.5 py-1 rounded-lg shadow-sm flex flex-col justify-between gap-0.5 transition-colors duration-300";
+                healthPanel.className = "bg-white border border-slate-200 p-1.5 rounded-lg shadow-sm transition-colors duration-300";
+                activityLogPanel.className = "bg-white border border-slate-200 p-1.5 rounded-lg shadow-sm transition-colors duration-300";
+                telemetryHeading.className = "text-[8px] font-bold mb-0.5 text-slate-800 uppercase tracking-wider";
+                espLabel.className = "text-slate-700 font-semibold text-[9px]";
+                uptimeLabel.className = "text-[8px] text-slate-700 font-medium mr-1";
                 espUptime.className = "font-bold text-slate-900";
-                autoStartTitle.className = "font-bold text-slate-900 text-[10px]";
-                dryRunTitle.className = "font-bold text-slate-900 text-[10px]";
+                autoStartTitle.className = "font-bold text-slate-900 text-[9px]";
+                dryRunTitle.className = "font-bold text-slate-900 text-[9px]";
 
-                telemetryCards.forEach(c => c.className = "telemetryCard bg-white border border-slate-200 p-1.5 rounded-xl shadow-sm text-center transition-colors duration-300");
-                phaseLabels.forEach(p => p.className = "phaseLabel text-slate-600 text-[9px] font-semibold");
-                unitLabels.forEach(u => u.className = "unitLabel text-[9px] font-normal text-slate-600");
+                telemetryCards.forEach(c => c.className = "telemetryCard bg-white border border-slate-200 p-1 rounded-lg shadow-sm text-center transition-colors duration-300");
+                phaseLabels.forEach(p => p.className = "phaseLabel text-slate-600 text-[8px] font-semibold");
+                unitLabels.forEach(u => u.className = "unitLabel text-[8px] font-normal text-slate-600");
                 themeColor.setAttribute('content', '#ffffff');
             }
 
@@ -575,45 +573,45 @@
 
             if (status === 'ON') {
                 if (isDark) {
-                    statusCard.className = "py-1.5 px-3 rounded-xl border border-emerald-500 bg-emerald-950/40 shadow-md text-center transition-all duration-200";
-                    statusText.className = "text-xl sm:text-2xl font-black tracking-wide text-emerald-400";
-                    statusLabel.className = "text-slate-300 text-[8px] uppercase tracking-wider font-semibold mb-0.5";
-                    lastSync.className = "text-slate-400 text-[8px] mt-0.5 font-medium";
+                    statusCard.className = "py-1 px-2.5 rounded-lg border border-emerald-500 bg-emerald-950/40 shadow-md text-center transition-all duration-200";
+                    statusText.className = "text-lg sm:text-xl font-black tracking-wide text-emerald-400 leading-tight";
+                    statusLabel.className = "text-slate-300 text-[8px] uppercase tracking-wider font-semibold";
+                    lastSync.className = "text-slate-400 text-[8px] font-medium";
                 } else {
-                    statusCard.className = "py-1.5 px-3 rounded-xl border-2 border-emerald-500 bg-emerald-50 shadow-sm text-center transition-all duration-200";
-                    statusText.className = "text-xl sm:text-2xl font-black tracking-wide text-emerald-700";
-                    statusLabel.className = "text-slate-700 text-[8px] uppercase tracking-wider font-bold mb-0.5";
-                    lastSync.className = "text-slate-600 text-[8px] mt-0.5 font-semibold";
+                    statusCard.className = "py-1 px-2.5 rounded-lg border-2 border-emerald-500 bg-emerald-50 shadow-sm text-center transition-all duration-200";
+                    statusText.className = "text-lg sm:text-xl font-black tracking-wide text-emerald-700 leading-tight";
+                    statusLabel.className = "text-slate-700 text-[8px] uppercase tracking-wider font-bold";
+                    lastSync.className = "text-slate-600 text-[8px] font-semibold";
                 }
             } else if (status.startsWith('TRIPPED')) {
                 if (isDark) {
-                    statusCard.className = "py-1.5 px-3 rounded-xl border-2 border-rose-500 bg-rose-950/60 shadow-lg text-center transition-all duration-200 animate-pulse";
-                    statusText.className = "text-lg sm:text-xl font-black tracking-wide text-rose-400";
+                    statusCard.className = "py-1 px-2.5 rounded-lg border-2 border-rose-500 bg-rose-950/60 shadow-lg text-center transition-all duration-200 animate-pulse";
+                    statusText.className = "text-base sm:text-lg font-black tracking-wide text-rose-400 leading-tight";
                 } else {
-                    statusCard.className = "py-1.5 px-3 rounded-xl border-2 border-rose-600 bg-rose-100 shadow-md text-center transition-all duration-200 animate-pulse";
-                    statusText.className = "text-lg sm:text-xl font-black tracking-wide text-rose-800";
+                    statusCard.className = "py-1 px-2.5 rounded-lg border-2 border-rose-600 bg-rose-100 shadow-md text-center transition-all duration-200 animate-pulse";
+                    statusText.className = "text-base sm:text-lg font-black tracking-wide text-rose-800 leading-tight";
                 }
                 statusText.innerText = "🚨 FAULT: " + status;
             } else if (status === 'REBOOTING') {
                 if (isDark) {
-                    statusCard.className = "py-1.5 px-3 rounded-xl border border-amber-500 bg-amber-950/40 shadow-md text-center transition-all duration-200";
-                    statusText.className = "text-xl sm:text-2xl font-black tracking-wide text-amber-400";
+                    statusCard.className = "py-1 px-2.5 rounded-lg border border-amber-500 bg-amber-950/40 shadow-md text-center transition-all duration-200";
+                    statusText.className = "text-lg sm:text-xl font-black tracking-wide text-amber-400 leading-tight";
                 } else {
-                    statusCard.className = "py-1.5 px-3 rounded-xl border-2 border-amber-500 bg-amber-50 shadow-sm text-center transition-all duration-200";
-                    statusText.className = "text-xl sm:text-2xl font-black tracking-wide text-amber-700";
+                    statusCard.className = "py-1 px-2.5 rounded-lg border-2 border-amber-500 bg-amber-50 shadow-sm text-center transition-all duration-200";
+                    statusText.className = "text-lg sm:text-xl font-black tracking-wide text-amber-700 leading-tight";
                 }
                 statusText.innerText = "REBOOTING ESP32...";
             } else { // 'OFF'
                 if (isDark) {
-                    statusCard.className = "py-1.5 px-3 rounded-xl border border-rose-500 bg-rose-950/40 shadow-md text-center transition-all duration-200";
-                    statusText.className = "text-xl sm:text-2xl font-black tracking-wide text-rose-400";
-                    statusLabel.className = "text-slate-300 text-[8px] uppercase tracking-wider font-semibold mb-0.5";
-                    lastSync.className = "text-slate-400 text-[8px] mt-0.5 font-medium";
+                    statusCard.className = "py-1 px-2.5 rounded-lg border border-rose-500 bg-rose-950/40 shadow-md text-center transition-all duration-200";
+                    statusText.className = "text-lg sm:text-xl font-black tracking-wide text-rose-400 leading-tight";
+                    statusLabel.className = "text-slate-300 text-[8px] uppercase tracking-wider font-semibold";
+                    lastSync.className = "text-slate-400 text-[8px] font-medium";
                 } else {
-                    statusCard.className = "py-1.5 px-3 rounded-xl border-2 border-rose-400 bg-rose-50 shadow-sm text-center transition-all duration-200";
-                    statusText.className = "text-xl sm:text-2xl font-black tracking-wide text-rose-700";
-                    statusLabel.className = "text-slate-700 text-[8px] uppercase tracking-wider font-bold mb-0.5";
-                    lastSync.className = "text-slate-600 text-[8px] mt-0.5 font-semibold";
+                    statusCard.className = "py-1 px-2.5 rounded-lg border-2 border-rose-400 bg-rose-50 shadow-sm text-center transition-all duration-200";
+                    statusText.className = "text-lg sm:text-xl font-black tracking-wide text-rose-700 leading-tight";
+                    statusLabel.className = "text-slate-700 text-[8px] uppercase tracking-wider font-bold";
+                    lastSync.className = "text-slate-600 text-[8px] font-semibold";
                 }
             }
         }
@@ -681,15 +679,15 @@
             const text = document.getElementById('connText');
 
             if (state === 'connected') {
-                badge.className = "px-2 py-0.5 rounded-full text-[9px] font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1";
+                badge.className = "px-1.5 py-0.5 rounded-full text-[8px] font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1";
                 dot.className = "w-1.5 h-1.5 rounded-full bg-emerald-400";
                 text.innerText = message || "Connected";
             } else if (state === 'connecting') {
-                badge.className = "px-2 py-0.5 rounded-full text-[9px] font-semibold bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center gap-1";
+                badge.className = "px-1.5 py-0.5 rounded-full text-[8px] font-semibold bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center gap-1";
                 dot.className = "w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse";
                 text.innerText = message || "Connecting...";
             } else {
-                badge.className = "px-2 py-0.5 rounded-full text-[9px] font-semibold bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center gap-1";
+                badge.className = "px-1.5 py-0.5 rounded-full text-[8px] font-semibold bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center gap-1";
                 dot.className = "w-1.5 h-1.5 rounded-full bg-rose-400";
                 text.innerText = message || "Disconnected";
             }
@@ -788,9 +786,9 @@
                     updateStatusCardStyle(data.status);
 
                     // Update Amps
-                    document.getElementById('phase1Val').innerHTML = `${i1} <span class="unitLabel text-[9px] font-normal">A</span>`;
-                    document.getElementById('phase2Val').innerHTML = `${i2} <span class="unitLabel text-[9px] font-normal">A</span>`;
-                    document.getElementById('phase3Val').innerHTML = `${i3} <span class="unitLabel text-[9px] font-normal">A</span>`;
+                    document.getElementById('phase1Val').innerHTML = `${i1} <span class="unitLabel text-[8px] font-normal">A</span>`;
+                    document.getElementById('phase2Val').innerHTML = `${i2} <span class="unitLabel text-[8px] font-normal">A</span>`;
+                    document.getElementById('phase3Val').innerHTML = `${i3} <span class="unitLabel text-[8px] font-normal">A</span>`;
 
                     // Update Voltages
                     if (data.v1 !== undefined) document.getElementById('v1Val').innerText = `${data.v1} V`;
@@ -864,8 +862,8 @@
 
                     const isDark = document.getElementById('htmlRoot').classList.contains('dark');
                     document.getElementById('espHealthBadge').className = isDark
-                        ? "px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-400"
-                        : "px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300";
+                        ? "px-1.5 py-0.5 rounded text-[8px] font-bold bg-emerald-500/20 text-emerald-400"
+                        : "px-1.5 py-0.5 rounded text-[8px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300";
                     document.getElementById('espHealthBadge').innerText = "Online (Live)";
 
                     setConnectionState('connected', 'Cloud Live');
@@ -880,8 +878,8 @@
             if (lastMessageTime > 0 && (Date.now() - lastMessageTime > 8000)) {
                 const isDark = document.getElementById('htmlRoot').classList.contains('dark');
                 document.getElementById('espHealthBadge').className = isDark
-                    ? "px-1.5 py-0.5 rounded text-[9px] font-bold bg-rose-500/20 text-rose-400"
-                    : "px-1.5 py-0.5 rounded text-[9px] font-bold bg-rose-100 text-rose-800 border border-rose-300";
+                    ? "px-1.5 py-0.5 rounded text-[8px] font-bold bg-rose-500/20 text-rose-400"
+                    : "px-1.5 py-0.5 rounded text-[8px] font-bold bg-rose-100 text-rose-800 border border-rose-300";
                 document.getElementById('espHealthBadge').innerText = "ESP32 Offline";
                 document.getElementById('wifiSsidContainer').classList.add('hidden');
                 document.getElementById('ipContainer').classList.add('hidden');
