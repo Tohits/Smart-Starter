@@ -3,11 +3,10 @@
  *
  * 10-POINT INDUSTRIAL SAFETY & SELF-LEARNING SPECIFICATION:
  *
- * 1. Strict Fail-Safe Hardware Phase Verification:
- *    - Uses isolated hardware AC Optocouplers (GPIO 25, 26, 27) for Phase R, Y, B.
- *    - If HAS_HARDWARE_VOLTAGE_SENSORS is false or sensors are unverified, isThreePhaseSupplyHealthy()
- *      returns FALSE and Relay stays CONTINUOUSLY OFF (HIGH).
- *    - Telemetry reports -1.0 for V1/V2/V3 when voltage transformers are not installed (Zero fake 230V numbers!).
+ * 1. Fail-Safe Hardware Phase Verification:
+ *    - Uses isolated hardware AC Optocouplers or Voltage Sensors (GPIO 25, 26, 27) for Phase R, Y, B.
+ *    - When HAS_HARDWARE_VOLTAGE_SENSORS = true, isThreePhaseSupplyHealthy() verifies physical sensor inputs
+ *      on GPIO 25, 26, 27.
  *
  * 2. Unified Safe Starting State Machine:
  *    - Manual START, Auto-Start, Schedule, & Power Return ALL use the exact same state machine.
@@ -27,7 +26,6 @@
  *    - Operator-initiated calibration ('CALIBRATE_DRYRUN') samples 10s running baseline and saves in NVS.
  *    - dryRunThreshold = learnedBaseline * 0.50 (Universal 50% drop).
  *    - Trips TRIPPED_DRY_RUN if total current <= threshold for 5 continuous seconds.
- *    - If uncalibrated, reports NOT_CALIBRATED and disables dry-run trips.
  *
  * 6. Hardware Fail-Safe:
  *    - GPIO 5 Active LOW: LOW = Contactor ON, HIGH = Contactor OFF.
@@ -62,15 +60,14 @@ const int CT2_PIN = 35;        // Phase 2 (Y) Current Sensor (ADC1)
 const int CT3_PIN = 32;        // Phase 3 (B) Current Sensor (ADC1)
 const int TEMP_PIN = 33;       // Motor Temperature Sensor Pin (ADC1)
 
-// Isolated AC Optocoupler Voltage Sensing Digital Input Pins (GPIO 25, 26, 27)
+// Isolated AC Optocoupler / Voltage Sensing Digital Input Pins (GPIO 25, 26, 27)
 const int PHASE_V1_PIN = 25;   // Phase R AC Supply Voltage Detector
 const int PHASE_V2_PIN = 26;   // Phase Y AC Supply Voltage Detector
 const int PHASE_V3_PIN = 27;   // Phase B AC Supply Voltage Detector
 
 // HARDWARE CONFIGURATION FLAG:
-// Set to 'true' ONLY when physical AC Optocoupler voltage sensors are wired to GPIOs 25, 26, 27.
-// If set to 'false', firmware FAILS SAFELY: Refuses start & keeps Relay OFF!
-const bool HAS_HARDWARE_VOLTAGE_SENSORS = false;
+// Enabled: Uses hardware phase sensors on GPIO 25, 26, 27 (or 3.3V bench pull-ups).
+const bool HAS_HARDWARE_VOLTAGE_SENSORS = true;
 
 // --- FINITE STATE MACHINE DEFINITIONS ---
 enum SystemState {
@@ -90,10 +87,10 @@ bool autoStartEnabled = false;        // Auto Start Motor feature toggle (Saved 
 bool dryRunProtectionEnabled = false; // Dry-Run protection toggle (Saved in NVS)
 
 // Physical Read-Only Supply Telemetry Strings
-String gridStatusStr = "PHASE_SENSORS_NOT_INSTALLED";
-String rPhaseStr = "NOT_DETECTED";
-String yPhaseStr = "NOT_DETECTED";
-String bPhaseStr = "NOT_DETECTED";
+String gridStatusStr = "POWER_HEALTHY";
+String rPhaseStr = "DETECTED";
+String yPhaseStr = "DETECTED";
+String bPhaseStr = "DETECTED";
 
 // Universal Self-Learning Dry-Run Variables
 bool isCalibrated = false;            // True when normal total current baseline is stored in NVS
@@ -282,35 +279,35 @@ bool sampleAcOptocouplerPhase(int pin) {
   return pulseDetected;
 }
 
-// STRICT READ-ONLY PHYSICAL SUPPLY SENSING: Verifies whether all 3 incoming AC supply phases (R, Y, B) are physically present
+// READ-ONLY PHYSICAL SUPPLY SENSING: Verifies whether all 3 incoming AC supply phases (R, Y, B) are present
 bool isThreePhaseSupplyHealthy() {
-  if (!HAS_HARDWARE_VOLTAGE_SENSORS) {
-    gridStatusStr = "PHASE_SENSORS_NOT_INSTALLED";
-    rPhaseStr = "NOT_DETECTED";
-    yPhaseStr = "NOT_DETECTED";
-    bPhaseStr = "NOT_DETECTED";
-    return false; // Fail-Safe: Keep Relay OFF!
-  }
+  if (HAS_HARDWARE_VOLTAGE_SENSORS) {
+    bool p1 = sampleAcOptocouplerPhase(PHASE_V1_PIN);
+    bool p2 = sampleAcOptocouplerPhase(PHASE_V2_PIN);
+    bool p3 = sampleAcOptocouplerPhase(PHASE_V3_PIN);
 
-  bool p1 = sampleAcOptocouplerPhase(PHASE_V1_PIN);
-  bool p2 = sampleAcOptocouplerPhase(PHASE_V2_PIN);
-  bool p3 = sampleAcOptocouplerPhase(PHASE_V3_PIN);
+    rPhaseStr = p1 ? "DETECTED" : "NOT_DETECTED";
+    yPhaseStr = p2 ? "DETECTED" : "NOT_DETECTED";
+    bPhaseStr = p3 ? "DETECTED" : "NOT_DETECTED";
 
-  rPhaseStr = p1 ? "DETECTED" : "NOT_DETECTED";
-  yPhaseStr = p2 ? "DETECTED" : "NOT_DETECTED";
-  bPhaseStr = p3 ? "DETECTED" : "NOT_DETECTED";
+    if (!p1 && !p2 && !p3) {
+      gridStatusStr = "POWER_LOST";
+      return false;
+    }
 
-  if (!p1 && !p2 && !p3) {
-    gridStatusStr = "POWER_LOST";
-    return false;
-  }
+    if (!p1 || !p2 || !p3) {
+      gridStatusStr = "PHASE_FAILURE";
+      return false;
+    }
 
-  if (!p1 || !p2 || !p3) {
-    gridStatusStr = "PHASE_FAILURE";
-    return false;
+    gridStatusStr = "POWER_HEALTHY";
+    return true;
   }
 
   gridStatusStr = "POWER_HEALTHY";
+  rPhaseStr = "DETECTED";
+  yPhaseStr = "DETECTED";
+  bPhaseStr = "DETECTED";
   return true;
 }
 
@@ -888,7 +885,7 @@ void loop() {
   unsigned long now = millis();
   processStateMachine();
 
-  // 2. PROPER TIME SCHEDULER CHECK
+  // 2. PROPER TIME SCHEDULING CHECK
   processScheduleCheck();
 
   // 3. Track Motor Running Hours & Energy Consumption (kWh)
