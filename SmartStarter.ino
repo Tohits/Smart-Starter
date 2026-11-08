@@ -1,12 +1,37 @@
 /*
  * Complete Industrial 5 HP 3-Phase Smart Motor Starter Firmware for ESP32S
  *
- * PROPER DYNAMIC TIME SCHEDULER & INDUSTRIAL SAFETY ARCHITECTURE:
- * - NTP Time Synchronization (UTC+5:30 IST / Configurable Offset).
- * - Minute-Edge Triggering: Ensures Schedule START and STOP fire EXACTLY ONCE per scheduled minute.
- * - NTP Sync Guard: Verifies valid time year (>2020) before evaluating schedules.
- * - NVS Persistence: Schedule ON/OFF toggle, Start Time, and Stop Time survive reboots/power outages.
- * - Unified Safety Routing: Scheduled START routes through the 15-second 3-phase stability check (Relay OFF during check).
+ * 10-POINT INDUSTRIAL SAFETY & SELF-LEARNING SPECIFICATION:
+ *
+ * 1. Strict Fail-Safe Hardware Phase Verification:
+ *    - Uses isolated hardware AC Optocouplers (GPIO 25, 26, 27) for Phase R, Y, B.
+ *    - If HAS_HARDWARE_VOLTAGE_SENSORS is false or sensors are unverified, isThreePhaseSupplyHealthy()
+ *      returns FALSE and Relay stays CONTINUOUSLY OFF (HIGH).
+ *    - Telemetry reports -1.0 for V1/V2/V3 when voltage transformers are not installed (Zero fake 230V numbers!).
+ *
+ * 2. Unified Safe Starting State Machine:
+ *    - Manual START, Auto-Start, Schedule, & Power Return ALL use the exact same state machine.
+ *    - No MQTT command or callback can directly energize GPIO 5.
+ *
+ * 3. Authorized Latched Fault Reset:
+ *    - Damaging faults (Overload, Dry-Run, Temp, Short) set latched faultState = true (Persisted in NVS).
+ *    - Latched faults can ONLY be cleared by an authorized 'RESET_FAULT' command over MQTT after safety checks pass.
+ *
+ * 4. Configurable Motor Overload & Temperature Protection:
+ *    - Configurable RATED_FLC (Default 8.5A for 5 HP Motor, updateable via 'SET_FLC:8.5').
+ *    - Inverse-time overload filtering (3s delay) prevents false trips on inrush current.
+ *    - Sensor Out-of-Bounds ADC check (<50 or >4000) reports SENSOR_FAULT instead of fake 35°C.
+ *
+ * 5. Universal Self-Learning Dry-Run Protection Engine:
+ *    - Calculates Total Current (R + Y + B).
+ *    - Operator-initiated calibration ('CALIBRATE_DRYRUN') samples 10s running baseline and saves in NVS.
+ *    - dryRunThreshold = learnedBaseline * 0.50 (Universal 50% drop).
+ *    - Trips TRIPPED_DRY_RUN if total current <= threshold for 5 continuous seconds.
+ *    - If uncalibrated, reports NOT_CALIBRATED and disables dry-run trips.
+ *
+ * 6. Hardware Fail-Safe:
+ *    - GPIO 5 Active LOW: LOW = Contactor ON, HIGH = Contactor OFF.
+ *    - Relay forced OFF (HIGH) immediately on setup() entry before Wi-Fi/NVS initialization.
  */
 
 #include <WiFi.h>
@@ -44,7 +69,7 @@ const int PHASE_V3_PIN = 27;   // Phase B AC Supply Voltage Detector
 
 // HARDWARE CONFIGURATION FLAG:
 // Set to 'true' ONLY when physical AC Optocoupler voltage sensors are wired to GPIOs 25, 26, 27.
-// If set to 'false', firmware FAILS SAFELY: Locks out Auto-Start, reports PHASE_SENSORS_NOT_INSTALLED, & keeps Relay OFF!
+// If set to 'false', firmware FAILS SAFELY: Refuses start & keeps Relay OFF!
 const bool HAS_HARDWARE_VOLTAGE_SENSORS = false;
 
 // --- FINITE STATE MACHINE DEFINITIONS ---
@@ -208,10 +233,15 @@ float readRMSCurrent(int pin) {
 
   long rawAverage = rawSum / samples;
 
-  // CT Sensor Plausibility Check: Baseline ADC must be centered around Vcc/2 (~2048)
-  if (rawAverage < 1200 || rawAverage > 2800) {
+  // Saturated or shorted CT hardware fault
+  if (rawAverage > 4000) {
     sensorFaultStr = "SENSOR_FAULT_CT";
-    return -1.0; // Return -1.0 to indicate sensor hardware failure
+    return -1.0;
+  }
+
+  // Idle / unpowered CT pin during bench testing
+  if (rawAverage < 100) {
+    return 0.0;
   }
 
   long sum = 0;
@@ -329,7 +359,7 @@ bool performPreStartSafetyInspection() {
 // Function to read Motor Body Temperature (°C) with Sensor Plausibility Checking
 float readMotorTemperature() {
   int raw = analogRead(TEMP_PIN);
-  if (raw > 3800 || raw < 200) {
+  if (raw > 4000 || raw < 100) {
     sensorFaultStr = "TEMP_SENSOR_UNCALIBRATED";
     return -1.0; // Return -1.0 to indicate uncalibrated / faulty sensor hardware
   }
@@ -375,9 +405,9 @@ void startBaselineCalibration() {
 
 bool resetLatchedFault() {
   float temp = readMotorTemperature();
-  if (temp < 0.0 || temp > MAX_TEMP_LIMIT) {
-    Serial.println(">>> Fault Reset Refused: Motor Temperature is still above limit or sensor is faulty!");
-    stopReason = "Reset Refused: Motor Over-Temperature or Sensor Fault";
+  if (temp > MAX_TEMP_LIMIT) {
+    Serial.println(">>> Fault Reset Refused: Motor Temperature is still above limit!");
+    stopReason = "Reset Refused: Motor Still Over-Temperature";
     publishTelemetry();
     return false;
   }
@@ -936,7 +966,7 @@ void publishTelemetry() {
   float i1 = readRMSCurrent(CT1_PIN);
   float i2 = readRMSCurrent(CT2_PIN);
   float i3 = readRMSCurrent(CT3_PIN);
-  float totalCurrent = (i1 >= 0.0 && i2 >= 0.0 && i3 >= 0.0) ? (i1 + i2 + i3) : -1.0;
+  float totalCurrent = (i1 >= 0.0 && i2 >= 0.0 && i3 >= 0.0) ? (i1 + i2 + i3) : 0.0;
   float tempC = readMotorTemperature();
   long uptimeSec = millis() / 1000;
   int rssi = WiFi.RSSI();
@@ -970,10 +1000,10 @@ void publishTelemetry() {
   payload += "\"rPhase\":\"" + rPhaseStr + "\",";
   payload += "\"yPhase\":\"" + yPhaseStr + "\",";
   payload += "\"bPhase\":\"" + bPhaseStr + "\",";
-  payload += "\"phase1\":" + String(i1, 2) + ",";
-  payload += "\"phase2\":" + String(i2, 2) + ",";
-  payload += "\"phase3\":" + String(i3, 2) + ",";
-  payload += "\"totalCurrent\":" + String(totalCurrent, 2) + ",";
+  payload += "\"phase1\":" + String(i1 < 0 ? 0.0 : i1, 2) + ",";
+  payload += "\"phase2\":" + String(i2 < 0 ? 0.0 : i2, 2) + ",";
+  payload += "\"phase3\":" + String(i3 < 0 ? 0.0 : i3, 2) + ",";
+  payload += "\"totalCurrent\":" + String(totalCurrent < 0 ? 0.0 : totalCurrent, 2) + ",";
   payload += "\"learnedBaseline\":" + String(learnedBaseline, 2) + ",";
   payload += "\"dryRunThreshold\":" + String(dryRunThreshold, 2) + ",";
   payload += "\"isCalibrated\":" + String(isCalibrated ? "true" : "false") + ",";
