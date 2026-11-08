@@ -179,18 +179,20 @@
             </div>
         </div>
 
-        <!-- Toggles & Time Scheduler Controls Row -->
+        <!-- Toggles & Time Scheduler Controls Row (READ-ONLY Physical 3-Phase Grid Indicator!) -->
         <div class="grid grid-cols-1 sm:grid-cols-4 gap-1.5 text-xs">
-            <!-- 3-Phase Grid Power Switch -->
+            <!-- 100% READ-ONLY Physical 3-Phase Grid Power Status Badge (Zero User Click/Toggle Override!) -->
             <div id="gridCard" class="bg-slate-800 border border-slate-700 px-2 py-1.5 rounded-lg shadow flex items-center justify-between gap-1 transition-colors duration-300">
                 <div class="flex items-center gap-1">
                     <span class="text-xs">🔌</span>
-                    <h4 class="font-bold text-white text-[9px]">3-Phase Grid</h4>
+                    <div>
+                        <h4 class="font-bold text-white text-[9px]">3-Phase Supply</h4>
+                        <p id="gridDetailsLabel" class="text-[7px] text-slate-400 font-mono">R:? Y:? B:?</p>
+                    </div>
                 </div>
-                <label class="relative inline-flex items-center cursor-pointer select-none">
-                    <input type="checkbox" id="gridToggle" checked onchange="toggleGridPower()" aria-label="3-Phase Grid Power Toggle" class="sr-only peer">
-                    <div class="w-8 h-4 bg-slate-400 dark:bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-emerald-500 shadow-inner"></div>
-                </label>
+                <span id="gridStatusBadge" class="px-1.5 py-0.5 rounded text-[8px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                    SENSORS NOT INSTALLED ⚠️
+                </span>
             </div>
 
             <!-- Auto-Start Toggle Switch -->
@@ -327,7 +329,6 @@
         let currentAutoStart = false;
         let currentDryRun = true;
         let currentScheduleEnabled = false;
-        let currentPhaseGridOk = true;
         let lastReceivedStatus = 'OFF';
         let lastNotifiedStatus = '';
         let commandTimeoutId = null;
@@ -852,6 +853,29 @@
                         if (resetBtn) resetBtn.classList.add('hidden');
                     }
 
+                    // Update Read-Only Physical Supply Status Indicator Card
+                    const gridBadge = document.getElementById('gridStatusBadge');
+                    const gridDetails = document.getElementById('gridDetailsLabel');
+
+                    const rState = data.rPhase || "NOT_DETECTED";
+                    const yState = data.yPhase || "NOT_DETECTED";
+                    const bState = data.bPhase || "NOT_DETECTED";
+                    gridDetails.innerText = `R:${rState.startsWith('DET') ? '🟢' : '🔴'} Y:${yState.startsWith('DET') ? '🟢' : '🔴'} B:${bState.startsWith('DET') ? '🟢' : '🔴'}`;
+
+                    if (data.gridStatus === 'POWER_HEALTHY') {
+                        gridBadge.className = "px-1.5 py-0.5 rounded text-[8px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30";
+                        gridBadge.innerText = "POWER HEALTHY 🟢";
+                    } else if (data.gridStatus === 'POWER_LOST') {
+                        gridBadge.className = "px-1.5 py-0.5 rounded text-[8px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30 animate-pulse";
+                        gridBadge.innerText = "POWER LOST 🔴";
+                    } else if (data.gridStatus === 'PHASE_FAILURE') {
+                        gridBadge.className = "px-1.5 py-0.5 rounded text-[8px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30 animate-bounce";
+                        gridBadge.innerText = "PHASE FAILURE 🚨";
+                    } else {
+                        gridBadge.className = "px-1.5 py-0.5 rounded text-[8px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30";
+                        gridBadge.innerText = "SENSORS NOT INSTALLED ⚠️";
+                    }
+
                     // Update Universal Self-Learning Dry-Run Panel
                     const calBadge = document.getElementById('calibrationBadge');
                     const baseVal = document.getElementById('learnedBaselineVal');
@@ -956,13 +980,6 @@
                         document.getElementById('wifiSsidContainer').classList.add('hidden');
                     }
 
-                    // 3-Phase Grid Power Status Toggle Switch
-                    if (data.phaseGridOk !== undefined) {
-                        currentPhaseGridOk = data.phaseGridOk;
-                        const gridToggle = document.getElementById('gridToggle');
-                        if (gridToggle) gridToggle.checked = currentPhaseGridOk;
-                    }
-
                     // Auto-Start Status Toggle Switch
                     if (data.autoStartEnabled !== undefined) {
                         currentAutoStart = data.autoStartEnabled;
@@ -1038,22 +1055,6 @@
                     statusText.innerText = "ERROR";
                 } else {
                     console.log(`Command ${state} published successfully`);
-                }
-            });
-        }
-
-        function toggleGridPower() {
-            const toggle = document.getElementById('gridToggle');
-            const nextState = toggle.checked;
-            const command = nextState ? 'PHASE_GRID_OK' : 'PHASE_GRID_FAIL';
-            showToast("3-Phase Grid Power", nextState ? "3-Phase Power Grid Normal 🟢" : "Phase Grid Power Failure / Loss 🔴", nextState ? "success" : "fault");
-
-            client.publish('smartstarter/motor1/control', command, { qos: 1 }, (err) => {
-                if (err) {
-                    alert("Failed to toggle 3-Phase Grid Power: " + err.message);
-                    toggle.checked = !nextState;
-                } else {
-                    console.log(`Grid Power command ${command} published successfully`);
                 }
             });
         }
