@@ -181,7 +181,7 @@
 
         <!-- Toggles & Time Scheduler Controls Row (READ-ONLY Physical 3-Phase Grid Indicator!) -->
         <div class="grid grid-cols-1 sm:grid-cols-4 gap-1.5 text-xs">
-            <!-- 100% READ-ONLY Physical 3-Phase Grid Power Status Badge (Zero User Click/Toggle Override!) -->
+            <!-- 100% READ-ONLY Physical 3-Phase Grid Power Status Badge -->
             <div id="gridCard" class="bg-slate-800 border border-slate-700 px-2 py-1.5 rounded-lg shadow flex items-center justify-between gap-1 transition-colors duration-300">
                 <div class="flex items-center gap-1">
                     <span class="text-xs">🔌</span>
@@ -239,21 +239,29 @@
             </div>
         </div>
 
-        <!-- System Activity & Event Log Panel -->
-        <div id="activityLogPanel" class="bg-slate-800 border border-slate-700 p-1.5 rounded-lg shadow transition-colors duration-300">
-            <div class="flex items-center justify-between gap-2 mb-0.5">
-                <h3 class="text-[8px] font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1">
-                    📋 System Activity & Event Log
-                </h3>
-                <button onclick="clearActivityLogs()" class="bg-slate-700 hover:bg-slate-600 text-slate-300 text-[7px] px-1.5 py-0.5 rounded font-semibold transition">
-                    🗑️ Clear
-                </button>
+        <!-- SEPARATE STANDALONE SYSTEM ACTIVITY & EVENT LOG SECTION WITH DATE & TIME STAMPS -->
+        <section id="activityLogPanel" class="bg-slate-800 border border-slate-700 p-2 rounded-xl shadow-lg transition-colors duration-300">
+            <div class="flex items-center justify-between gap-2 mb-1 border-b border-slate-700/60 pb-1">
+                <div class="flex items-center gap-1.5">
+                    <h3 class="text-[9px] sm:text-xs font-black text-slate-200 uppercase tracking-wider flex items-center gap-1">
+                        📜 System Activity & Event Log History
+                    </h3>
+                    <span id="logCountBadge" class="bg-blue-600/30 text-blue-300 border border-blue-500/40 text-[7px] px-1.5 py-0.2 rounded-full font-bold">
+                        0 Events
+                    </span>
+                </div>
+                <div class="flex items-center gap-1">
+                    <button onclick="clearActivityLogs()" class="bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 text-[8px] px-2 py-0.5 rounded font-bold transition flex items-center gap-1">
+                        🗑️ Clear Log
+                    </button>
+                </div>
             </div>
-            <!-- Scrollable Log Container -->
-            <div id="logContainer" class="bg-slate-900/80 border border-slate-700/70 rounded p-1 h-9 overflow-y-auto space-y-0.5 text-[8px] font-mono select-text">
-                <div class="text-slate-400 italic text-center py-0.5">System initialized. Waiting for events...</div>
+
+            <!-- Scrollable Log Container with Full Date-Time Stamps -->
+            <div id="logContainer" class="bg-slate-950/90 border border-slate-800 rounded-lg p-1.5 h-12 overflow-y-auto space-y-1 text-[8px] font-mono select-text shadow-inner">
+                <div class="text-slate-500 italic text-center py-1">System initialized. Waiting for events...</div>
             </div>
-        </div>
+        </section>
 
         <!-- 3-Phase Current & Voltage Telemetry -->
         <div>
@@ -335,10 +343,20 @@
         let espLocalIp = '10.146.68.77';
         let activityLogs = [];
 
-        // --- System Activity & Event Logger ---
+        // Helper to format full Date & Time Stamp (YYYY-MM-DD HH:MM:SS AM/PM)
+        function getFullDateTimeStamp() {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const timeStr = now.toLocaleTimeString('en-US', { hour12: true });
+            return `${year}-${month}-${day} ${timeStr}`;
+        }
+
+        // --- Separate Standalone System Activity & Event Logger ---
         function addActivityLog(message, type = 'info') {
-            const timeStr = new Date().toLocaleTimeString();
-            const logEntry = { time: timeStr, message: message, type: type };
+            const dateTimeStamp = getFullDateTimeStamp();
+            const logEntry = { timestamp: dateTimeStamp, message: message, type: type };
             activityLogs.unshift(logEntry);
             if (activityLogs.length > 50) activityLogs.pop();
 
@@ -347,23 +365,37 @@
 
         function renderActivityLogs() {
             const logContainer = document.getElementById('logContainer');
+            const countBadge = document.getElementById('logCountBadge');
             if (!logContainer) return;
 
+            if (countBadge) {
+                countBadge.innerText = `${activityLogs.length} Event${activityLogs.length === 1 ? '' : 's'}`;
+            }
+
             if (activityLogs.length === 0) {
-                logContainer.innerHTML = '<div class="text-slate-400 italic text-center py-0.5">No activity logs recorded.</div>';
+                logContainer.innerHTML = '<div class="text-slate-500 italic text-center py-1">No activity logs recorded.</div>';
                 return;
             }
 
             let html = '';
             activityLogs.forEach(entry => {
                 let colorClass = 'text-slate-300';
-                if (entry.type === 'success') colorClass = 'text-emerald-400 font-bold';
-                else if (entry.type === 'error' || entry.type === 'fault') colorClass = 'text-rose-400 font-bold';
-                else if (entry.type === 'warning') colorClass = 'text-amber-400 font-bold';
+                let icon = 'ℹ️';
 
-                html += `<div class="flex items-center gap-1.5 border-b border-slate-800/80 pb-0.5 mb-0.5">
-                    <span class="text-slate-500 text-[7px]">[${entry.time}]</span>
-                    <span class="${colorClass}">${entry.message}</span>
+                if (entry.type === 'success') {
+                    colorClass = 'text-emerald-400 font-bold';
+                    icon = '🟢';
+                } else if (entry.type === 'error' || entry.type === 'fault') {
+                    colorClass = 'text-rose-400 font-bold';
+                    icon = '🚨';
+                } else if (entry.type === 'warning') {
+                    colorClass = 'text-amber-400 font-bold';
+                    icon = '⚠️';
+                }
+
+                html += `<div class="flex items-start gap-1.5 border-b border-slate-900/90 pb-0.5 mb-0.5 leading-tight">
+                    <span class="text-slate-500 text-[7px] whitespace-nowrap font-bold">[${entry.timestamp}]</span>
+                    <span class="${colorClass} flex-grow leading-tight">${icon} ${entry.message}</span>
                 </div>`;
             });
 
@@ -597,7 +629,7 @@
                 scheduleCard.className = "bg-slate-800 border border-slate-700 px-2.5 py-1 rounded-lg shadow flex flex-col justify-between gap-0.5 transition-colors duration-300";
                 healthPanel.className = "bg-slate-800 border border-slate-700 p-1.5 rounded-lg shadow transition-colors duration-300";
                 dryRunCalibrationPanel.className = "bg-slate-800 border border-slate-700 p-1.5 rounded-lg shadow transition-colors duration-300";
-                activityLogPanel.className = "bg-slate-800 border border-slate-700 p-1.5 rounded-lg shadow transition-colors duration-300";
+                activityLogPanel.className = "bg-slate-800 border border-slate-700 p-2 rounded-xl shadow-lg transition-colors duration-300";
                 telemetryHeading.className = "text-[8px] font-bold mb-0.5 text-slate-300 uppercase tracking-wider";
                 espLabel.className = "text-slate-400 font-semibold text-[9px]";
                 uptimeLabel.className = "text-[8px] text-slate-300 mr-1";
@@ -622,7 +654,7 @@
                 scheduleCard.className = "bg-white border border-slate-200 px-2.5 py-1 rounded-lg shadow-sm flex flex-col justify-between gap-0.5 transition-colors duration-300";
                 healthPanel.className = "bg-white border border-slate-200 p-1.5 rounded-lg shadow-sm transition-colors duration-300";
                 dryRunCalibrationPanel.className = "bg-white border border-slate-200 p-1.5 rounded-lg shadow-sm transition-colors duration-300";
-                activityLogPanel.className = "bg-white border border-slate-200 p-1.5 rounded-lg shadow-sm transition-colors duration-300";
+                activityLogPanel.className = "bg-white border border-slate-200 p-2 rounded-xl shadow-md transition-colors duration-300";
                 telemetryHeading.className = "text-[8px] font-bold mb-0.5 text-slate-800 uppercase tracking-wider";
                 espLabel.className = "text-slate-700 font-semibold text-[9px]";
                 uptimeLabel.className = "text-[8px] text-slate-700 font-medium mr-1";
